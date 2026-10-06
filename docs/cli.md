@@ -6,6 +6,7 @@ See the [README](../README.md) for install, auth, and the usual flow. `canvas --
 
 | Command | Tool |
 |---|---|
+| `canvas web [--port 8765] [--no-open] [--data-dir PATH]` | Optional local web workbench; requires the `web` extra |
 | `canvas today` | `get_today` |
 | `canvas courses` | `list_courses` |
 | `canvas resolve QUERY` | `resolve_course` |

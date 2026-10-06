@@ -1,0 +1,10 @@
+recursive-include webapp/static *
+recursive-include docs *.md
+recursive-include skills *.md
+include PRODUCT.md DESIGN.md uv.lock
+recursive-include web *.json *.ts *.tsx *.css *.html *.md *.mjs
+exclude web/node_modules/*
+recursive-exclude web/node_modules *
+recursive-exclude web/coverage *
+recursive-exclude web/test-results *
+recursive-exclude web/playwright-report *

@@ -8,6 +8,7 @@ Authentication uses your existing **Chrome Canvas session**: sign in through Chr
 
 - `canvas-mcp` — Canvas tools for MCP clients.
 - `canvas` — the same tools in your terminal.
+- `canvas web` — optional local course workspaces (v3 Phase A branch).
 - Courses, assignments, grades, announcements, discussions, pages, modules, and files.
 - Submission/missing status, peer-review TODOs, Canvas Inbox, and module-to-item course trees.
 - Preview and confirm discussion posts/replies, Inbox messages, submission comments, and module completion updates.
@@ -65,6 +66,53 @@ canvas --help
 ```
 
 Append `@main` or `@<tag-or-commit>` to the repository URL to select a revision.
+
+## Local web workbench (v3 Phase A)
+
+This branch adds the foundation for a local study workbench: a Canvas course dashboard, one persistent workspace per course, custom workspaces, rename/delete controls and Settings. Source synchronization, indexing, chat, provider configuration and Study Studio generation belong to later phases and are not implemented yet. The CLI and MCP tool surface remains compatible with v2.
+
+For a source checkout, build the UI once with Node.js 22.12 or later ([Vite requirements](https://vite.dev/guide/)), then install the optional web dependencies in your project environment:
+
+```bash
+cd web
+npm ci
+npm run build
+cd ..
+uv sync --locked --extra web --no-editable --reinstall-package hkust-canvas-mcp --python .venv/bin/python
+.venv/bin/canvas web
+```
+
+Use the same project-local uv/runtime settings described above. Run `npm run build` and reinstall after changing frontend code. Installed release wheels include the built UI; running an installed wheel does not require Node. Developers packaging a wheel or source distribution must build the frontend first.
+
+`canvas web` reserves a port on `127.0.0.1`, opens the browser after startup and prints a private launch URL. Leave its terminal open; Ctrl+C stops the server. If port 8765 is occupied, it selects an unused port. Use `--port 0` to always choose an unused port, or `--no-open` to open the printed URL yourself. Use the full printed link on first connection; its fragment establishes a local HttpOnly session and is removed from browser history. Restarting the server invalidates old sessions.
+
+```bash
+canvas web --no-open
+canvas web --port 0 --data-dir /absolute/path/outside-the-repository
+```
+
+The dashboard uses your existing Chrome profile selection and HKUST session. No PAT is needed. Existing local workspaces open even when Canvas is unavailable. Change your profile with `canvas settings choose-profile "Your Chrome profile name"`, then retry in the dashboard; the web app does not maintain a second authentication configuration.
+
+Workspace metadata is stored outside Git in `~/Library/Application Support/HKUST_Canvas_MCP/app.db` on macOS, `$XDG_DATA_HOME/HKUST_Canvas_MCP/app.db` (or `~/.local/share/...`) on Linux, and `%LOCALAPPDATA%/HKUST_Canvas_MCP/app.db` on Windows. The storage directory/database have owner-only permissions where supported. `--data-dir` cannot point inside this repository. Deleting a local workspace never deletes anything from Canvas.
+
+This phase calls no AI providers and sends no course text to them. Canvas cookies remain server-side in Python and are never returned to the browser or stored in the workspace database. The local API checks the exact loopback Host/Origin, requires a launch session, and protects mutations with a separate web CSRF token. It has no public binding, CORS, arbitrary file-read endpoint or Canvas-write endpoint. Existing Canvas writes remain in the CLI/MCP with their existing preview/confirmation flow.
+
+Frontend development and isolated tests:
+
+```bash
+uv sync --locked --extra web
+python -m pytest -q
+cd web
+npm ci
+npm test
+npm run build
+npx playwright install chromium
+npm run test:e2e
+```
+
+Browser tests use synthetic mocked Canvas data. For hot reload, run the Python server on port 8765 with `--no-open`, run `npm run dev`, and open `http://127.0.0.1:5173/#session=THE_TOKEN_FROM_THE_PRINTED_LAUNCH_URL`. This fixed development proxy translates only that local frontend Origin; production uses the Python-served compiled assets. Keep the token private. For the installed app, use the printed Python URL directly.
+
+See [Phase A implementation map and validation](docs/v3-phase-a.md) for boundaries and packaging details.
 
 ## Connect to HKUST Canvas
 
