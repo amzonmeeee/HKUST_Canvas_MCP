@@ -229,6 +229,8 @@ Canvas can reuse an existing private conversation when sending to the same recip
 
 Failed confirmed writes consume their token and are not retried automatically: check Canvas before starting a new preview, because a connection failure can occur after delivery. Module completion only supports an accessible `must_mark_done` item and reads back its state after the write. Already-completed items do not trigger a new write. Inbox state changes support `read`, `unread` and `archived`.
 
+Discussion previews respect Canvas's explicit `permissions.reply` value. An instructor or owner may be allowed to reply to an unpublished or closed topic; posting through this tool does not publish or unlock that topic. Without explicit permission, locked or unpublished discussions remain blocked.
+
 ## Scheduled submissions
 
 A successful preview records the HKUST Canvas address and the absolute Chrome profile path. Confirmation, file upload, scheduled execution, and cancellation cleanup use that saved context, even if you later change your profile settings.

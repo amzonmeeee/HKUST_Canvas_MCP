@@ -359,6 +359,35 @@ def test_locked_discussion_never_previews_or_posts(activity_client):
     activity_client.activity_write.assert_not_called()
 
 
+@pytest.mark.parametrize("restriction", ["locked", "locked_for_user", "unpublished"])
+@pytest.mark.parametrize("action", ["post_discussion_entry", "reply_to_discussion_entry"])
+def test_discussion_explicit_reply_permission_overrides_publication_state(activity_client, restriction, action):
+    topic = {"id": 42, "permissions": {"reply": True}}
+    topic["published" if restriction == "unpublished" else restriction] = False if restriction == "unpublished" else True
+    activity_client.activity_get.return_value = topic
+    args = {"course_id": "1", "topic_id": "2", "message": "Synthetic test post"}
+    if action == "reply_to_discussion_entry":
+        args["entry_id"] = "3"
+    result = dispatch_tool_call(action, args)
+    assert result["status"] == "preview" and result["written"] is False
+    activity_client.activity_write.assert_not_called()
+
+
+def test_discussion_explicit_reply_denial_blocks_published_topic(activity_client):
+    activity_client.activity_get.return_value = {"id": 42, "published": True, "locked": False, "permissions": {"reply": False}}
+    result = dispatch_tool_call("post_discussion_entry", {"course_id": "1", "topic_id": "2", "message": "Synthetic test post"})
+    assert result["error"] == "invalid_argument"
+    activity_client.activity_write.assert_not_called()
+
+
+@pytest.mark.parametrize("permission", [None, "true", 1])
+def test_unpublished_discussion_requires_explicit_boolean_reply_permission(activity_client, permission):
+    activity_client.activity_get.return_value = {"id": 42, "published": False, "permissions": {"reply": permission}}
+    result = dispatch_tool_call("post_discussion_entry", {"course_id": "1", "topic_id": "2", "message": "Synthetic test post"})
+    assert result["error"] == "invalid_argument"
+    activity_client.activity_write.assert_not_called()
+
+
 @pytest.mark.parametrize("name,args", [
     ("post_discussion_entry", {"course_id": "../private", "topic_id": "2", "message": "Text"}),
     ("send_conversation", {"recipients": ["50", "50"], "subject": "Text", "body": "Text"}),

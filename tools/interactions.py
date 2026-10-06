@@ -26,8 +26,15 @@ def _operation(client, name, args, actor):
         cid, tid = _course_target(args, "topic_id")
         endpoint = f"courses/{cid}/discussion_topics/{tid}"
         topic = client.activity_get(endpoint)
-        if topic.get("locked") or topic.get("locked_for_user") or topic.get("published") is False:
-            raise ValueError("This discussion is locked or unpublished.")
+        reply_permission = (topic.get("permissions") or {}).get("reply")
+        if reply_permission is False:
+            raise ValueError("Canvas does not allow this account to reply to this discussion.")
+        restricted = topic.get("locked") or topic.get("locked_for_user") or topic.get("published") is False
+        # Canvas can explicitly allow instructors/owners to reply to an
+        # unpublished or closed topic. Do not confuse its publication state
+        # with this account's permission, or publish/unlock it as a workaround.
+        if restricted and reply_permission is not True:
+            raise ValueError("This discussion is locked or unpublished, and Canvas has not granted reply permission.")
         target = {"course_id": cid, "topic_id": tid, "title": topic.get("title")}
         endpoint += "/entries"
         if name == "reply_to_discussion_entry":
