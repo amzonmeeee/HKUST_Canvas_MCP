@@ -10,6 +10,7 @@ from auth.profiles import resolve_chrome_profile_path
 from auth.resolve import require_hkust_canvas_url
 
 from .assignments import CanvasAssignmentsMixin
+from .activity import CanvasActivityMixin
 from .base import CanvasClientBase
 from .content import CanvasContentMixin
 from .courses import CanvasCoursesMixin
@@ -17,6 +18,7 @@ from .submissions_write import CanvasSubmissionsWriteMixin
 
 
 class CanvasClient(
+    CanvasActivityMixin,
     CanvasCoursesMixin,
     CanvasAssignmentsMixin,
     CanvasSubmissionsWriteMixin,

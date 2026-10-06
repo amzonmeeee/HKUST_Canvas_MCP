@@ -45,6 +45,10 @@ FIELD_ORDER = {
     "course": "id name course_code workflow_state term time_zone teachers",
     "page": "page_id title url updated_at body",
     "auth": "auth_verified auth_status error selected_chrome_profile resolved_canvas_base_url auth_mode",
+    "peer_reviews": "id course_id assignment_id assignment_name workflow_state due_at sources html_url",
+    "conversations": "id subject workflow_state unread_count last_message_at last_message participants",
+    "conversation": "id subject workflow_state participants messages",
+    "messages": "id author_id created_at body attachments",
 }
 SECONDARY = {
     "id_aliases",
@@ -83,6 +87,7 @@ EXACT_FIELDS = {
     "path",
     "local_path",
     "preview_token",
+    "confirmation_token",
     "filename",
     "filenames",
     "url",
@@ -398,6 +403,13 @@ def _render(view: _Pretty, result: dict[str, Any], tool_name: str) -> None:
     if result.get("error"):
         view.line("Error")
         view.record(result, full=True)
+    elif result.get("status") == "preview" and result.get("confirmation_token"):
+        view.line("Preview — approval required before sending")
+        # Preserve raw HTML and all content in approval previews. The normal
+        # reader view strips HTML, which could hide part of a proposed post.
+        view.record({key: value for key, value in result.items() if key != "payload"}, full=True)
+        view.line("Exact payload (JSON):")
+        view.line(json.dumps(result["payload"], ensure_ascii=False, indent=2), exact=True)
     elif tool_name == "get_today":
         view.line(_value(result.get("today")))
         view.record({key: value for key, value in result.items() if key != "today"})

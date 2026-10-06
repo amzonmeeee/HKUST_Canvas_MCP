@@ -66,7 +66,7 @@ def _register_tool(spec: ToolSpec) -> None:
     _tool.__doc__ = spec.description
     _tool.__signature__ = signature
     _tool.__annotations__ = annotations
-    mcp.tool(_tool, name=spec.name, description=spec.description)
+    mcp.tool(_tool, name=spec.name, description=spec.description, annotations=spec.annotations)
 
 
 for tool_spec in TOOL_SPECS:

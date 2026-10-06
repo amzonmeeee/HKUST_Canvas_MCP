@@ -12,6 +12,7 @@ class ToolSpec:
     description: str
     parameters: dict[str, Any]
     handler: ToolHandler
+    annotations: dict[str, Any] | None = None
 
 
 def tool_spec(
@@ -21,6 +22,7 @@ def tool_spec(
     handler: ToolHandler,
     properties: dict[str, Any] | None = None,
     required: list[str] | None = None,
+    annotations: dict[str, Any] | None = None,
 ) -> ToolSpec:
     parameters: dict[str, Any] = {
         "type": "object",
@@ -34,4 +36,5 @@ def tool_spec(
         description=description,
         parameters=parameters,
         handler=handler,
+        annotations=annotations,
     )

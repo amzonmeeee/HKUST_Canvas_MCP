@@ -4,11 +4,13 @@
 
 Lecture notes, assignment deadlines, announcements, and one fewer tab to click. Access HKUST Canvas from your terminal or an MCP-compatible AI agent.
 
-Independently maintained by [amzonmeeee](https://github.com/amzonmeeee), based on [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp). Authentication uses your existing **Chrome Canvas session**: sign in through Chrome, then let the local tools use that session.
+Authentication uses your existing **Chrome Canvas session**: sign in through Chrome, then let the local tools use that session.
 
 - `canvas-mcp` — Canvas tools for MCP clients.
 - `canvas` — the same tools in your terminal.
 - Courses, assignments, grades, announcements, discussions, pages, modules, and files.
+- Submission/missing status, peer-review TODOs, Canvas Inbox, and module-to-item course trees.
+- Preview and confirm discussion posts/replies, Inbox messages, submission comments, and module completion updates.
 - Preview and confirm assignment submissions, with optional local scheduling on macOS.
 
 Agent skill: [`skills/canvas-cli/SKILL.md`](skills/canvas-cli/SKILL.md). Full command table: [`docs/cli.md`](docs/cli.md).
@@ -129,6 +131,8 @@ Commit source code, synthetic tests, and configuration examples with placeholder
 
 Authentication reads Chrome cookies into memory. Saved settings contain your profile name/path, and scheduled submission records contain course/assignment information and the profile path. Their default locations are outside the checkout. If you override their locations, use an ignored directory such as `data/`. Never include actual authentication or Canvas responses in test fixtures or documentation.
 
+The new interaction confirmations store only a request/account fingerprint and expiry under `~/Library/Application Support/canvasmcp/write-confirmations/`, with private directory/file permissions. They do not store message bodies, recipient lists, cookies or profile paths. `CANVASMCP_CONFIRMATION_DIR` can override this location; choose a private directory outside Git or the ignored `data/` directory. Command output can contain personal Canvas data and confirmation tokens, so keep captured output private.
+
 Before publishing, review `git status --short`, `git diff --cached`, and `git log origin/main..HEAD`. Check commit author/committer metadata too: use your public GitHub identity and a GitHub noreply email if you want to keep your personal name/email private. Deleting a file in a later commit does not remove it from earlier history.
 
 ## MCP setup
@@ -180,6 +184,51 @@ canvas url "https://canvas.ust.hk/courses/12345/assignments/67890"
 
 Use `canvas --help` and each subcommand's `--help` for flags. Raw tools are available through `canvas tool list` and `canvas tool run <name> --args '{...}'`.
 
+## Submission status, peer reviews, Inbox and course structure
+
+These commands read Canvas without submitting work, posting content or changing Inbox/module state:
+
+```bash
+canvas submissions --course 12345
+canvas submissions --course 12345 --missing
+canvas submissions --course 12345 --status overdue
+canvas peer-reviews todo --course 12345
+canvas peer-reviews todo --course 12345 --assignment 67890
+canvas inbox list --scope unread --limit 5
+canvas inbox show 24680 --limit 20
+canvas course structure 12345 --modules-limit 100 --items-limit 100
+canvas course module-items 12345 13579
+```
+
+Omit `--course` from `submissions` or `peer-reviews todo` to scan active **student** enrollments, including courses outside favorites. The default scan covers 30 courses and 100 assignments per course. Peer reviews also inspect up to 100 reviews per assignment and 300 Planner records; other Planner item types count against that limit. Increase the corresponding `--courses-limit`, `--assignments-limit`, `--reviews-limit` or `--planner-limit` flags if needed (maximum 300 each). Output limits are separate from scan limits. JSON reports `partial`, `truncated` and `warnings` where applicable; an empty partial scan does not establish that you have no pending work.
+
+Submission status distinguishes Canvas-marked `missing` from `overdue` inferred using your effective deadline, and includes submitted, graded, excused, unsubmitted, external-tool, not-required, unpublished and unknown states. External services such as Gradescope can have work that Canvas reports as unsubmitted: check that service rather than treating it as missing. Status counts describe the scanned assignments before output filtering.
+
+Peer-review TODOs merge assignment-level reviews with the Planner's `assessment_request` items, filter assignment reviews to your assessor ID, remove completed reviews and deduplicate findings. A known assignment can be checked directly even when its listing lacks the `peer_reviews` flag. Permission failures are reported alongside any available findings. Reviewee names are omitted to preserve anonymous-review settings.
+
+Inbox reads use `auto_mark_as_read=false`. The course structure fetches each module's canonical item list, including links, content details, prerequisites and completion requirements. It reports item-list failures and truncation; resources outside modules and content Canvas hides from your account are not included.
+
+## Preview and confirm interactions
+
+All the following commands **preview only** when `--confirm` is omitted. The example IDs and content are synthetic; replace them with the intended targets. Discussion posting means an entry in an existing topic; assignment comments are on your own submission.
+
+```bash
+canvas discussion post 12345 24680 --message '<p>My discussion post.</p>'
+canvas discussion reply 12345 24680 35790 --message '<p>My reply.</p>'
+canvas assignments submissions comment 12345 67890 --comment 'My submission comment.'
+canvas inbox send --to 45670 --subject 'Question' --body 'My message.' --course 12345
+canvas inbox reply 24680 --body 'My reply.'
+canvas inbox update 24680 --state archived
+canvas course module-done 12345 13579 35790
+canvas course module-done 12345 13579 35790 --undo
+```
+
+Review the displayed account, target, recipients and exact payload. To execute, repeat the **same command and arguments** with `--confirm '<confirmation_token>'` from that preview. Tokens expire after 10 minutes, are single-use across CLI/MCP processes, and are bound to the account, Chrome profile, target and content. For MCP, repeat the same tool call with `confirmation_token` only after explicit user approval; the token itself is not proof of human approval. Pretty previews display the raw payload so HTML cannot hide part of the proposed content. Obtain recipient IDs from `canvas course people COURSE`; `--to` accepts Canvas user IDs, not names or emails. Multiple recipients receive individual conversations by default; `--group` makes a shared conversation.
+
+Canvas can reuse an existing private conversation when sending to the same recipient, in which case it ignores the proposed subject. Replies use the conversation's audience, rather than the authors of forwarded messages, and pin those recipient IDs in the confirmed request.
+
+Failed confirmed writes consume their token and are not retried automatically: check Canvas before starting a new preview, because a connection failure can occur after delivery. Module completion only supports an accessible `must_mark_done` item and reads back its state after the write. Already-completed items do not trigger a new write. Inbox state changes support `read`, `unread` and `archived`.
+
 ## Scheduled submissions
 
 A successful preview records the HKUST Canvas address and the absolute Chrome profile path. Confirmation, file upload, scheduled execution, and cancellation cleanup use that saved context, even if you later change your profile settings.
@@ -219,3 +268,5 @@ The Chrome-cookie adapter, Canvas SDK, and FastMCP versions are pinned to the ve
 This project builds on [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp) and is independently maintained by amzonmeeee for HKUST Canvas.
 
 Thanks to the original author for the Canvas CLI, MCP tools, Chrome-session authentication, and test foundation. The original project uses the MIT License; its copyright notice is retained in [LICENSE](LICENSE).
+
+Thanks also to [vishalsachdev/canvas-mcp](https://github.com/vishalsachdev/canvas-mcp) for informing the additional student workflows: submission status, peer-review TODOs, Inbox, discussion posts/replies, submission comments, module completion and course structure. These features were implemented against Canvas's official APIs: [submissions](https://canvas.instructure.com/doc/api/submissions.html), [peer reviews](https://canvas.instructure.com/doc/api/peer_reviews.html), [Planner](https://canvas.instructure.com/doc/api/planner.html), [conversations](https://canvas.instructure.com/doc/api/conversations.html), [discussions](https://canvas.instructure.com/doc/api/discussion_topics.html) and [modules](https://canvas.instructure.com/doc/api/modules.html).

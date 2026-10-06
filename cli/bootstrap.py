@@ -7,6 +7,7 @@ import typer
 
 from auth import CanvasAPIError, ensure_canvas_auth_configured, get_auth_status
 from cli.assignments import assignments_app
+from cli.activity import register as register_activity
 from cli.assignments import register as register_assignments
 from cli.courses import course_app
 from cli.courses import register as register_courses
@@ -82,6 +83,7 @@ register_courses(_invoke)
 register_assignments(_invoke)
 register_discussions(_invoke)
 register_files(_invoke)
+register_activity(app, _invoke)
 register_misc(
     app,
     invoke=_invoke,

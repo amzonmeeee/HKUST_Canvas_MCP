@@ -661,7 +661,7 @@ class TestListCoursePeopleTool:
 
     def test_returns_people(self, mock_client):
         mock_client.list_course_users.return_value = [
-            {"id": 1, "name": "Jane Doe", "email": "jane@umd.edu", "enrollments": []},
+            {"id": 1, "name": "Jane Doe", "email": "jane@example.edu", "enrollments": []},
         ]
         from tools import list_course_people
 

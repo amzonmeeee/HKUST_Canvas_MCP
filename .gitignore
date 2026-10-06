@@ -61,6 +61,7 @@ exports/
 downloads/
 scheduled-submits/
 previews/
+write-confirmations/
 jobs/
 
 # Live smoke-test output and debug captures may contain personal data

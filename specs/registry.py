@@ -4,6 +4,7 @@ from jsonschema import Draft202012Validator
 
 from auth import CanvasAPIError
 from specs.assignments import ASSIGNMENT_TOOL_SPECS
+from specs.activity import ACTIVITY_TOOL_SPECS
 from specs.content import CONTENT_TOOL_SPECS
 from specs.core import CORE_TOOL_SPECS
 from specs.courses import COURSE_TOOL_SPECS
@@ -15,6 +16,7 @@ TOOL_SPECS: list[ToolSpec] = [
     *COURSE_TOOL_SPECS,
     *ASSIGNMENT_TOOL_SPECS,
     *CONTENT_TOOL_SPECS,
+    *ACTIVITY_TOOL_SPECS,
 ]
 
 _SPEC_MAP: dict[str, ToolSpec] = {spec.name: spec for spec in TOOL_SPECS}

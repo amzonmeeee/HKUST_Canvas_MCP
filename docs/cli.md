@@ -36,7 +36,24 @@ See the [README](../README.md) for install, auth, and the usual flow. `canvas --
 | `canvas files folders ID` | `list_course_folders` |
 | `canvas announcements --course ID` | `list_announcements` |
 | `canvas todo` | `list_todo_items` |
+| `canvas submissions [--course ID] [--missing] [--status STATUS]` | `get_my_submission_status` |
+| `canvas peer-reviews todo [--course ID] [--assignment ID]` | `get_my_peer_reviews_todo` |
+| `canvas inbox list [--scope unread]` | `list_conversations` |
+| `canvas inbox show ID` | `get_conversation_details` |
+| `canvas inbox send --to ID --subject TEXT --body TEXT` | `send_conversation` |
+| `canvas inbox reply ID --body TEXT` | `reply_to_conversation` |
+| `canvas inbox update ID --state read\|unread\|archived` | `update_conversation` |
+| `canvas discussion post COURSE TOPIC --message TEXT` | `post_discussion_entry` |
+| `canvas discussion reply COURSE TOPIC ENTRY --message TEXT` | `reply_to_discussion_entry` |
+| `canvas assignments submissions comment COURSE ASSIGNMENT --comment TEXT` | `add_submission_comment` |
+| `canvas course structure ID` | `get_course_structure` |
+| `canvas course module-items COURSE MODULE` | `list_module_items` |
+| `canvas course module-done COURSE MODULE ITEM [--undo]` | `mark_module_item_done` |
 | `canvas course people ID` | `list_course_people` |
 | `canvas url URL` | `resolve_canvas_url` |
 
 `canvas_get_page` is wiki pages only. Use `canvas url` when the link type is unknown. Non-self submission queries need extra Canvas permissions.
+
+The new write commands preview without `--confirm`; repeat identical arguments with `--confirm TOKEN` after approving the exact preview. The MCP equivalents take `confirmation_token`. Tokens expire after 10 minutes and cannot be reused. Read-only Inbox commands do not mark messages read. `submissions` is a status report, while `assignments submissions` contains the submission/comment workflows; `assignments submissions status JOB` still inspects a scheduled job.
+
+Scan/output limits are independent. Raise scan limits if `partial`/`warnings` report incomplete discovery; increasing only `--limit` does not scan additional assignments. Course structure includes accessible module items; it is not an inventory of unmoduled resources. See [README](../README.md) for status definitions, peer-review discovery and confirmation storage.

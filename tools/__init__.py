@@ -4,6 +4,23 @@ from tools.assignments import (
     list_assignment_groups,
     list_course_assignments,
 )
+from tools.activity import (
+    get_conversation_details,
+    get_course_structure,
+    get_my_peer_reviews_todo,
+    get_my_submission_status,
+    list_conversations,
+    list_module_items,
+)
+from tools.interactions import (
+    add_submission_comment,
+    mark_module_item_done,
+    post_discussion_entry,
+    reply_to_conversation,
+    reply_to_discussion_entry,
+    send_conversation,
+    update_conversation,
+)
 from tools.courses import (
     get_course_overview,
     get_course_syllabus,
@@ -43,6 +60,19 @@ from tools.submit import (
 )
 
 __all__ = [
+    "add_submission_comment",
+    "get_conversation_details",
+    "get_course_structure",
+    "get_my_peer_reviews_todo",
+    "get_my_submission_status",
+    "list_conversations",
+    "list_module_items",
+    "mark_module_item_done",
+    "post_discussion_entry",
+    "reply_to_conversation",
+    "reply_to_discussion_entry",
+    "send_conversation",
+    "update_conversation",
     "cancel_scheduled_submission",
     "canvas_get_page",
     "confirm_assignment_submission",
