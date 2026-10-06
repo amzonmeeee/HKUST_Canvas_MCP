@@ -1,6 +1,6 @@
 # HKUST Canvas MCP
 
-**Built for the delicate constitution of UST BBs.**
+**Built for the delicate constitution of UST bb.**
 
 Lecture notes, assignment deadlines, announcements, and one fewer tab to click. Access HKUST Canvas from your terminal or an MCP-compatible AI agent.
 
