@@ -5,7 +5,7 @@ from threading import RLock
 from auth import get_auth_status
 from auth.profiles import resolve_selected_chrome_profile
 from specs.registry import dispatch_tool_call
-from tools.common import reset_canvas_client
+from tools.common import canvas_client, reset_canvas_client
 
 
 class CanvasServiceError(Exception):
@@ -96,6 +96,35 @@ class CanvasService:
                 "Canvas is unavailable. Check your Chrome session and network, then retry.",
             )
         return result
+
+    def client_call(self, method: str, **args):
+        """Internal adapter, never exposed as an arbitrary HTTP method dispatcher."""
+        from auth import CanvasAPIError
+
+        with self._lock:
+            context = resolve_selected_chrome_profile()
+            if context != self._profile_context:
+                reset_canvas_client()
+                self._profile_context = context
+            try:
+                return getattr(canvas_client(), method)(**args)
+            except CanvasAPIError as exc:
+                status = exc.status_code or 502
+                code = {
+                    401: "canvas_auth_expired",
+                    403: "canvas_permission_denied",
+                    404: "canvas_not_found",
+                }.get(status, "canvas_unavailable")
+                raise CanvasServiceError(
+                    code,
+                    "Canvas could not provide this source. Check your Chrome session and course permissions.",
+                    status,
+                ) from exc
+            except Exception as exc:
+                raise CanvasServiceError(
+                    "canvas_unavailable",
+                    "Canvas could not provide this source. Check your network and retry.",
+                ) from exc
 
     def courses(self) -> dict:
         result = self._invoke("list_courses", {"favorites_only": False, "limit": 300})

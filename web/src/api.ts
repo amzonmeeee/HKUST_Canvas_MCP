@@ -77,3 +77,60 @@ export async function api<T>(
     }),
   );
 }
+
+export async function upload<T>(path: string, file: File): Promise<T> {
+  const body = new FormData();
+  body.append("file", file);
+  return decode(
+    await fetch(path, {
+      method: "POST",
+      body,
+      credentials: "same-origin",
+      headers: { "X-Workbench-CSRF": csrf },
+    }),
+  );
+}
+
+export async function stream(
+  path: string,
+  body: unknown,
+  onEvent: (event: Record<string, unknown>) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const response = await fetch(path, {
+    method: "POST",
+    body: JSON.stringify(body),
+    credentials: "same-origin",
+    signal,
+    headers: { "Content-Type": "application/json", "X-Workbench-CSRF": csrf },
+  });
+  if (!response.ok) {
+    await decode(response);
+    return;
+  }
+  if (!response.body)
+    throw new Error("Streaming is unavailable in this browser.");
+  const reader = response.body.getReader(),
+    decoder = new TextDecoder();
+  let buffer = "";
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      buffer += decoder.decode(value, { stream: !done });
+      let boundary: number;
+      while ((boundary = buffer.indexOf("\n\n")) >= 0) {
+        const block = buffer.slice(0, boundary);
+        buffer = buffer.slice(boundary + 2);
+        const data = block
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trimStart())
+          .join("\n");
+        if (data) onEvent(JSON.parse(data));
+      }
+      if (done) break;
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}

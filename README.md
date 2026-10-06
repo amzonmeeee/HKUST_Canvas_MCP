@@ -8,7 +8,7 @@ Authentication uses your existing **Chrome Canvas session**: sign in through Chr
 
 - `canvas-mcp` — Canvas tools for MCP clients.
 - `canvas` — the same tools in your terminal.
-- `canvas web` — optional local course workspaces (v3 Phase A branch).
+- `canvas web` — a local study workbench with sources, grounded chat and Study Studio.
 - Courses, assignments, grades, announcements, discussions, pages, modules, and files.
 - Submission/missing status, peer-review TODOs, Canvas Inbox, and module-to-item course trees.
 - Preview and confirm discussion posts/replies, Inbox messages, submission comments, and module completion updates.
@@ -67,11 +67,13 @@ canvas --help
 
 Append `@main` or `@<tag-or-commit>` to the repository URL to select a revision.
 
-## Local web workbench (v3 Phase A)
+## Local web workbench (v3.0)
 
-This branch adds the foundation for a local study workbench: a Canvas course dashboard, one persistent workspace per course, custom workspaces, rename/delete controls and Settings. Source synchronization, indexing, chat, provider configuration and Study Studio generation belong to later phases and are not implemented yet. The CLI and MCP tool surface remains compatible with v2.
+Open a Canvas course as a persistent workspace, or create a custom workspace for your own materials. Select sources, sync them locally, ask questions with clickable citations, and generate quizzes, flashcards or study guides. Conversations, materials and notes are saved on this computer. The v2 CLI and MCP tools retain their authentication and confirmation flows.
 
-For a source checkout, build the UI once with Node.js 22.12 or later ([Vite requirements](https://vite.dev/guide/)), then install the optional web dependencies in your project environment:
+### Start from a source checkout
+
+Build the UI once with Node.js 22.12 or later, then install the optional web dependencies **inside your project environment**:
 
 ```bash
 cd web
@@ -82,26 +84,59 @@ uv sync --locked --extra web --no-editable --reinstall-package hkust-canvas-mcp 
 .venv/bin/canvas web
 ```
 
-Use the same project-local uv/runtime settings described above. Run `npm run build` and reinstall after changing frontend code. Installed release wheels include the built UI; running an installed wheel does not require Node. Developers packaging a wheel or source distribution must build the frontend first.
+Use the project-local uv/runtime settings from the installation section. Rebuild and reinstall after changing the checkout. Release wheels include the compiled UI and prompts; running a wheel does not require Node. Building a wheel or source distribution requires `npm run build` first.
 
-`canvas web` reserves a port on `127.0.0.1`, opens the browser after startup and prints a private launch URL. Leave its terminal open; Ctrl+C stops the server. If port 8765 is occupied, it selects an unused port. Use `--port 0` to always choose an unused port, or `--no-open` to open the printed URL yourself. Use the full printed link on first connection; its fragment establishes a local HttpOnly session and is removed from browser history. Restarting the server invalidates old sessions.
+`canvas web` binds only to `127.0.0.1`, opens the browser after startup and prints a private launch URL. Keep its terminal open; Ctrl+C stops it. If port 8765 is occupied, it selects an unused port. Use the full printed link on first connection: its fragment establishes a local HttpOnly session and is removed from browser history. Restarting the server invalidates old sessions.
 
 ```bash
 canvas web --no-open
 canvas web --port 0 --data-dir /absolute/path/outside-the-repository
 ```
 
-The dashboard uses your existing Chrome profile selection and HKUST session. No PAT is needed. Existing local workspaces open even when Canvas is unavailable. Change your profile with `canvas settings choose-profile "Your Chrome profile name"`, then retry in the dashboard; the web app does not maintain a second authentication configuration.
+### First workspace
 
-Workspace metadata is stored outside Git in `~/Library/Application Support/HKUST_Canvas_MCP/app.db` on macOS, `$XDG_DATA_HOME/HKUST_Canvas_MCP/app.db` (or `~/.local/share/...`) on Linux, and `%LOCALAPPDATA%/HKUST_Canvas_MCP/app.db` on Windows. The storage directory/database have owner-only permissions where supported. `--data-dir` cannot point inside this repository. Deleting a local workspace never deletes anything from Canvas.
+1. Sign in to HKUST Canvas in your selected Chrome profile. The dashboard shares the CLI/MCP profile setting; no Canvas PAT is needed. Use `canvas settings choose-profile "Your Chrome profile name"` to change it, then retry in the dashboard.
+2. Open a course, or create a custom workspace. Existing workspaces and saved notes remain accessible while Canvas is offline.
+3. Use **Find course sources** to list syllabus, modules and their items, pages, files, assignments, announcements and discussion topics. Listing does not download course files. Select sources and use **Sync selected**, or explicitly choose **Sync course**. **Refresh source** checks and rebuilds one source. Each source shows its own status and error.
+4. Upload PDF, DOCX, PPTX, UTF-8 TXT/Markdown/HTML, VTT or SRT files, or use **Add text**. Parsing stays local. Files are limited to 25 MB, PDFs to 1,000 pages and extracted text to 2 million characters. Scanned PDFs need OCR outside this app. Videos and external/LTI tools remain references; upload captions to index video text. XLSX parsing, OCR and transcription are outside v3.0.
+5. Select ready sources and a provider, then send a question. Click a citation to inspect its text and page, slide, heading or timestamp, or open its canonical Canvas page. Unchanged refreshes preserve citation IDs. Changed or removed sources retain saved citation excerpts; the current-version viewer explains when an old citation is unavailable.
+6. Use **Study Studio** to choose material, topic, difficulty and item count. Generated items require valid source citations and are saved with provider/model, prompt version and source provenance. Quizzes support answer checking; cards reveal their backs. Export Markdown/JSON or save a material/answer as a local note.
 
-This phase calls no AI providers and sends no course text to them. Canvas cookies remain server-side in Python and are never returned to the browser or stored in the workspace database. The local API checks the exact loopback Host/Origin, requires a launch session, and protects mutations with a separate web CSRF token. It has no public binding, CORS, arbitrary file-read endpoint or Canvas-write endpoint. Existing Canvas writes remain in the CLI/MCP with their existing preview/confirmation flow.
+### Providers
 
-Frontend development and isolated tests:
+Add a provider in **Settings → Model providers**, enter a model identifier available to your account/server, save and use **Test connection**. The test sends only a short test prompt and may incur an API charge.
+
+| Provider | Configuration | Credential |
+| --- | --- | --- |
+| OpenAI | Official Responses API; enter your model identifier | Official API key |
+| Anthropic | Official Messages API; enter your model identifier | Official API key |
+| OpenAI-compatible gateway | HTTPS base URL ending in `/v1`, plus model identifier | Optional API key |
+| Ollama | `http://127.0.0.1:11434/v1`; start the server and pull a model first | Usually none |
+| LM Studio | `http://127.0.0.1:1234/v1`; enable its local server and load a model | Usually none |
+
+Enable streaming, native tool calling or native JSON Schema output only when the selected model/endpoint supports them. Without native tools, chat remains available and explicit **Live Canvas actions** still work. Studio validates JSON and citations in either mode and permits at most one JSON repair request. Provider rate limits and network failures are not automatically retried. Native schema support follows the provider's API; gateways vary.
+
+Keys are stored through `keyring` in a supported system credential store: macOS Keychain, Windows Credential Locker, Secret Service or KWallet. There is no plaintext fallback. The UI shows whether a key is saved, never its value. Keyless local configurations do not access Keychain. Changing a configured endpoint requires removing its old key before saving another. A ChatGPT/Claude consumer subscription is separate from API billing; use the existing MCP server with your subscription's MCP-capable client if preferred. The app never reuses an AI website's browser cookies.
+
+### Live Canvas actions and approval
+
+Source-grounded chat treats downloaded documents as course evidence, not as current submission state. Enable **Allow live Canvas tools** for requested current-state checks when your model supports tools, or use **Live Canvas actions** directly without a provider.
+
+Discussion posts/replies, Inbox sends/replies, comments on your own submission and module done/undo first produce a card showing the exact account, target, recipients and content. **Confirm Canvas write** performs the saved action through v2's server-side, single-use confirmation. Tokens never reach the model or frontend. Previews expire after ten minutes or server restart; cancellation performs no Canvas write. The model cannot call the confirmation endpoint. Check Canvas before retrying an ambiguous/disconnected write. Assignment submission and scheduling remain available through their existing v2 CLI/MCP workflows.
+
+### Storage and privacy
+
+Application data lives **outside Git**: `~/Library/Application Support/HKUST_Canvas_MCP/` on macOS, `$XDG_DATA_HOME/HKUST_Canvas_MCP/` (or `~/.local/share/...`) on Linux, and `%LOCALAPPDATA%/HKUST_Canvas_MCP/` on Windows. `app.db` holds workspaces, source metadata/chunks, conversations, notes, artifacts and nonsecret provider settings. Files are kept under `sources/<generated-id>/`; uploaded filenames cannot select filesystem paths. The directory/database/downloads have owner-only permissions where supported. Schema migrations preserve existing Phase A workspaces. `--data-dir` cannot point inside a Git checkout. Deleting a local workspace removes its local files/index and saved data, without deleting Canvas content.
+
+Sending/generating shares the prompt and required retrieved excerpts from **selected ready sources** with the configured provider. Chat also includes recent compatible conversation history; earlier turns involving now-unselected sources or disabled live tools remain saved locally but are omitted from model context. Explicit live tools may supply requested Canvas results. Changing provider does not delete local history. Source selection is visible for each request; course files are not automatically sent wholesale. A local endpoint keeps inference on that server; a remote gateway receives the same context.
+
+Canvas cookies and CSRF credentials remain in Python memory. They are never stored in the workspace database, exposed to the frontend or sent to an AI provider. The local API checks exact Host/Origin, requires the launch session, protects mutations with a separate web CSRF token, and exposes no arbitrary filesystem read or arbitrary source-fetch URL. Markdown does not render raw HTML or remote images. Logs contain operation metadata, not private message text, cookies, provider keys or authorization headers. Keep application data, exports, credentials and browser profiles out of Git.
+
+### Development and verification
 
 ```bash
-uv sync --locked --extra web
-python -m pytest -q
+uv sync --locked --extra web --no-editable --reinstall-package hkust-canvas-mcp --python .venv/bin/python
+.venv/bin/python -m pytest -q
 cd web
 npm ci
 npm test
@@ -110,9 +145,9 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-Browser tests use synthetic mocked Canvas data. For hot reload, run the Python server on port 8765 with `--no-open`, run `npm run dev`, and open `http://127.0.0.1:5173/#session=THE_TOKEN_FROM_THE_PRINTED_LAUNCH_URL`. This fixed development proxy translates only that local frontend Origin; production uses the Python-served compiled assets. Keep the token private. For the installed app, use the printed Python URL directly.
+Automated provider contracts and browser tests use synthetic data and mocked HTTP; they need no Chrome session or paid API credentials. For hot reload, run the Python server on port 8765 with `--no-open`, run `npm run dev`, and open `http://127.0.0.1:5173/#session=THE_TOKEN_FROM_THE_PRINTED_LAUNCH_URL`. The fixed development proxy translates only this frontend Origin. Keep the token private. Production uses the Python-served compiled assets.
 
-See [Phase A implementation map and validation](docs/v3-phase-a.md) for boundaries and packaging details.
+See [v3 implementation, requirements and verification](docs/v3-workbench.md) for the architecture, test evidence and live-test boundaries. [Phase A notes](docs/v3-phase-a.md) are retained as historical foundation documentation.
 
 ## Connect to HKUST Canvas
 

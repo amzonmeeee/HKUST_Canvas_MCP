@@ -16,7 +16,7 @@ HKUST Canvas users organizing their course materials on their own computer.
 
 ## Product Purpose
 
-A local study workspace with replaceable model providers and continued access through MCP and the CLI. The first implementation is Phase A: a course dashboard, persistent course/custom workspaces and a Settings shell.
+A local study workspace with replaceable model providers and continued access through MCP and the CLI. Course and custom workspaces combine explicit source synchronization, local search, grounded conversations, study materials and notes.
 
 ## Positioning
 
@@ -28,7 +28,7 @@ The app runs as a native Python process on loopback. Existing Chrome profile sel
 
 ## Capabilities and Constraints
 
-Phase A has no source synchronization, indexing, chat or model configuration. Later phases add these after the foundation passes its checks. Canvas writes retain the existing server-side confirmation system. Provider credentials and Canvas cookies never belong in browser JavaScript or local workspace records.
+Sources are parsed and indexed locally. AI requests share required retrieved excerpts from selected sources with the configured official or compatible provider. Conversations, notes and artifacts persist locally. Canvas writes retain the existing server-side confirmation system and an explicit human preview card. Previously saved provider secrets never return to JavaScript, and neither provider keys nor Canvas cookies belong in the workspace database. OCR, transcription, authenticated external-tool downloads and consumer AI-session reuse are outside scope.
 
 ## Brand Commitments
 

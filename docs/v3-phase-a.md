@@ -1,6 +1,6 @@
 # v3 Phase A implementation map
 
-This branch implements the foundation only. Phase B source sync and the later model/chat/studio phases remain out of scope. The implementation is authorized directly by the user's instruction to open a branch and proceed without questions; the approval pause in the suggested specification prompt does not apply.
+Historical record of the Phase A foundation commit. The branch now includes the remaining v3 workbench; use [the current implementation and verification map](v3-workbench.md) and README for current behavior. Phase A's scope and test results below describe that earlier commit.
 
 ## Shared integration
 

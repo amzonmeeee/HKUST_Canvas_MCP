@@ -199,7 +199,7 @@ def test_canvas_reads_and_settings(client, canvas_service):
     assert client.get("/api/canvas/status").json()["auth_verified"] is True
     settings = client.get("/api/settings").json()
     assert settings["profile_name"] == "Synthetic profile"
-    assert settings["providers_available"] is False
+    assert settings["providers_available"] is True
     assert settings["mcp_command"] == "canvas-mcp --transport stdio"
 
 

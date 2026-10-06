@@ -8,11 +8,12 @@ from typing import Literal
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from .db import WorkspaceRepository, default_data_dir
+from .db import SCHEMA_VERSION, WorkspaceRepository, default_data_dir
 from .security import SESSION_COOKIE, LocalSecurityMiddleware
 from .services.canvas import CanvasService, CanvasServiceError
 
@@ -68,6 +69,8 @@ def create_app(
     launch_secret: str | None = None,
     canvas_service: CanvasService | None = None,
     static_dir: Path | None = None,
+    secret_store=None,
+    provider_factory=None,
 ) -> FastAPI:
     repository = WorkspaceRepository(data_dir or default_data_dir())
     canvas = canvas_service or CanvasService()
@@ -77,6 +80,9 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app):
+        from .observability import configure_logging
+
+        configure_logging()
         repository.initialize()
         yield
 
@@ -114,6 +120,19 @@ def create_app(
             status_code=503,
         )
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, exc):
+        # FastAPI's default validation response echoes input, including API keys.
+        return JSONResponse(
+            {
+                "error": {
+                    "code": "invalid_request",
+                    "message": "Check the request fields and try again.",
+                }
+            },
+            status_code=422,
+        )
+
     @app.post("/api/session")
     def establish_session(request: Request, response: Response):
         bearer = request.headers.get("authorization", "")
@@ -139,13 +158,13 @@ def create_app(
     @app.get("/api/settings")
     def settings():
         return {
-            "phase": "A",
+            "phase": "v3",
             "canvas_url": "https://canvas.ust.hk",
             "profile_name": canvas.profile_name(),
             "storage": "Local application data directory",
-            "schema_version": 1,
+            "schema_version": SCHEMA_VERSION,
             "mcp_command": "canvas-mcp --transport stdio",
-            "providers_available": False,
+            "providers_available": True,
         }
 
     @app.get("/api/canvas/status")
@@ -204,9 +223,25 @@ def create_app(
 
     @app.delete("/api/workspaces/{workspace_id}", status_code=204)
     def delete_workspace(workspace_id: UUID):
+        require_workspace(workspace_id)
+        source_ids = [s["id"] for s in app.state.study_store.sources(str(workspace_id))]
         if not repository.delete(str(workspace_id)):
             raise HTTPException(status_code=404, detail="Workspace not found.")
+        for source_id in source_ids:
+            app.state.sources.remove_files(source_id)
+        for preview in app.state.interactions.previews(str(workspace_id)):
+            app.state.interactions.cancel(str(workspace_id), preview["id"])
         return Response(status_code=204)
+
+    from .routes import register_study_routes
+
+    register_study_routes(
+        app,
+        repository,
+        canvas,
+        secret_store=secret_store,
+        provider_factory=provider_factory,
+    )
 
     if (assets / "assets").is_dir():
         app.mount(

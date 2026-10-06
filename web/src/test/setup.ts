@@ -7,3 +7,4 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 window.scrollTo = vi.fn();
+HTMLElement.prototype.scrollIntoView = vi.fn();

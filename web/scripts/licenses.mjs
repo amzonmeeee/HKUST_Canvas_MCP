@@ -6,6 +6,8 @@ for (const [source, target] of [
   ["react/LICENSE", "react.txt"],
   ["react-dom/LICENSE", "react-dom.txt"],
   ["lucide-react/LICENSE", "lucide.txt"],
+  ["react-markdown/license", "react-markdown.txt"],
+  ["remark-gfm/license", "remark-gfm.txt"],
 ]) {
   await copyFile(
     new URL(`../node_modules/${source}`, import.meta.url),

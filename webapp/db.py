@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 
 
 def default_data_dir() -> Path:
@@ -67,9 +67,10 @@ class WorkspaceRepository:
                     "This database needs a newer version of the web application."
                 )
             db.execute("PRAGMA journal_mode=WAL")
-            if version == 0:
-                with db:
-                    db.execute("BEGIN")
+            with db:
+                db.execute("BEGIN IMMEDIATE")
+                version = db.execute("PRAGMA user_version").fetchone()[0]
+                if version == 0:
                     db.execute("""CREATE TABLE workspaces (
                         id TEXT PRIMARY KEY,
                         kind TEXT NOT NULL CHECK(kind IN ('canvas_course', 'custom')),
@@ -85,6 +86,9 @@ class WorkspaceRepository:
                               (kind = 'canvas_course' AND canvas_course_id IS NOT NULL))
                     )""")
                     db.execute("PRAGMA user_version=1")
+                from .store import migrate
+
+                migrate(db)
 
     def _connect(self):
         db = sqlite3.connect(self.path, timeout=10)

@@ -70,6 +70,12 @@ beforeEach(() => {
         };
       else if (path === "/api/workspaces" && method === "GET")
         result = { workspaces: stored };
+      else if (path === "/api/providers") result = { providers: [] };
+      else if (path.endsWith("/sources")) result = { sources: [] };
+      else if (path.endsWith("/conversations")) result = { conversations: [] };
+      else if (path.endsWith("/actions")) result = { tools: [], previews: [] };
+      else if (path.endsWith("/artifacts")) result = { artifacts: [] };
+      else if (path.endsWith("/notes")) result = { notes: [] };
       else if (path === "/api/workspaces" && method === "POST") {
         result = {
           ...workspace,
@@ -106,7 +112,7 @@ beforeEach(() => {
   );
 });
 
-describe("Phase A workbench", () => {
+describe("Local workbench foundation", () => {
   it("bootstraps a launch link once even when React StrictMode replays effects", async () => {
     render(
       <StrictMode>
@@ -153,10 +159,13 @@ describe("Phase A workbench", () => {
       )?.body,
     ).toEqual({ kind: "canvas_course", canvas_course_id: "101" });
     expect(
-      screen.getByText(
-        "Pages, files and module items will become selectable local sources in Phase B.",
-      ),
+      await screen.findByRole("button", { name: "Find course sources" }),
     ).toBeInTheDocument();
+    expect(
+      requests.some(
+        (r) => r.path.endsWith("/sync") || r.path.endsWith("/inventory"),
+      ),
+    ).toBe(false);
   });
   it("creates a custom workspace through an inline form", async () => {
     const user = userEvent.setup();
@@ -237,7 +246,7 @@ describe("Phase A workbench", () => {
     ).toBeInTheDocument();
     expect(stored).toHaveLength(0);
   });
-  it("has settings that disclose the foundation scope and existing MCP command", async () => {
+  it("has provider privacy disclosure and the existing MCP command", async () => {
     const user = userEvent.setup();
     render(<App />);
     await user.click(screen.getByRole("button", { name: "Settings" }));
@@ -245,7 +254,7 @@ describe("Phase A workbench", () => {
       await screen.findByText("canvas-mcp --transport stdio"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/No course text is sent to an AI provider/),
+      screen.getByText(/Cloud providers receive your prompts/),
     ).toBeInTheDocument();
     expect(screen.getByText("Synthetic profile")).toBeInTheDocument();
   });
@@ -272,15 +281,13 @@ describe("Phase A workbench", () => {
   it("gates the API UI on an authenticated local session", async () => {
     vi.stubGlobal(
       "fetch",
-      vi
-        .fn()
-        .mockResolvedValue({
-          status: 401,
-          ok: false,
-          json: async () => ({
-            error: { code: "session_required", message: "Expired" },
-          }),
+      vi.fn().mockResolvedValue({
+        status: 401,
+        ok: false,
+        json: async () => ({
+          error: { code: "session_required", message: "Expired" },
         }),
+      }),
     );
     render(<App />);
     expect(

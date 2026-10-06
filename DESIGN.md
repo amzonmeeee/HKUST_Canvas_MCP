@@ -10,7 +10,7 @@ Grounded candidates considered: library catalog, laboratory notebook, academic p
 
 Warm off-white work surface, deep forest navigation, ink text and a restrained orange action accent. Public Sans is self-hosted from the frontend dependency. Lucide line icons use a consistent stroke. No external fonts, gradients, illustration, decorative metrics or fake course totals.
 
-Desktop uses a 224px navigation rail and a flexible content field. Course entries share a table-like alignment and substantial titles. Workspace uses three panels that explain the upcoming source/chat/studio boundaries while providing working metadata and Canvas navigation. Mobile collapses navigation to a top bar and stacks panels; labels remain readable and actions stay reachable.
+Desktop uses a 224px navigation rail and a flexible content field. Course entries share aligned rows and substantial titles. Workspace uses source, conversation and Studio panels with compact controls and readable excerpts. Mobile collapses navigation to a top bar and stacks panels; labels remain readable and actions stay reachable. Source inspection uses a keyboard-accessible dialog; citations open local text and a canonical Canvas link.
 
 ## Interaction
 
@@ -18,4 +18,4 @@ Course row focus and hover reveal a quiet route-arrow translation. Loading prese
 
 ## Scope truth
 
-Phase A labels source sync, chat, providers and studio as future phases. There are no inactive controls masquerading as available features. Course metadata and workspace counts come from the API. Demonstration data belongs only in mocked tests.
+Source inventory never starts a download. Sync state and failed extraction are explicit. Chat and Studio disclose the selected provider and shared context; generation needs ready selected sources and a provider. Live Canvas actions can be used without a model. A separate human-confirm card shows account, target, recipients and content before a write. Course metadata and saved-work counts come from the API. Demonstration data belongs only in mocked tests.

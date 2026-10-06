@@ -191,6 +191,11 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
                   <span className="course-title">
                     <strong>{course.course_code || "Canvas course"}</strong>
                     <span>{course.name}</span>
+                    {local?.last_sync_at && (
+                      <small className="course-sync">
+                        Synced {new Date(local.last_sync_at).toLocaleString()}
+                      </small>
+                    )}
                   </span>
                   <span className="course-term">
                     {course.term_name || "Term not provided"}
@@ -311,8 +316,8 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         )}
       </section>
       <footer className="page-footer">
-        Local workspaces are ready. Source sync and study tools arrive in the
-        next phases.
+        Sources, conversations and study materials are saved locally. Select a
+        provider only when you want to use AI.
       </footer>
     </>
   );

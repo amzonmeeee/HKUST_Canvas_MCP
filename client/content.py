@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import re
 from typing import Any
+from urllib.parse import urljoin, urlsplit
 
 from canvasapi import Canvas
 
 from auth import CanvasAPIError
+
 from .base import MAX_PER_PAGE
 
 
@@ -132,7 +134,9 @@ class CanvasContentMixin:
         topic_id: str,
     ) -> dict[str, Any]:
         def _load(canvas: Canvas) -> dict[str, Any]:
-            return dict(canvas.get_course(course_id).get_full_discussion_topic(topic_id))
+            return dict(
+                canvas.get_course(course_id).get_full_discussion_topic(topic_id)
+            )
 
         return self._call_canvas(
             _load,
@@ -185,6 +189,78 @@ class CanvasContentMixin:
             f"download file {file_id} for course {course_id}",
         )
 
+    def download_file_bounded(
+        self,
+        *,
+        course_id: str,
+        file_id: str,
+        destination_path: str,
+        max_bytes: int = 25 * 1024 * 1024,
+    ) -> dict[str, Any]:
+        """Reuse the authenticated Canvas session for explicitly selected web sources.
+
+        Only a URL returned by Canvas file metadata is eligible. Redirects are
+        checked before following; CSRF headers are removed on storage hosts.
+        """
+
+        def _load(canvas):
+            file_info = canvas.get_course(course_id).get_file(file_id)
+            metadata = self._item_to_dict(file_info)
+            if int(metadata.get("size") or 0) > max_bytes:
+                raise ValueError("File exceeds the download limit")
+            requester = canvas._Canvas__requester
+            url = str(file_info.url)
+            for _ in range(6):
+                parsed = urlsplit(url)
+                host = (parsed.hostname or "").lower()
+                storage = host.endswith(
+                    (
+                        ".amazonaws.com",
+                        ".instructure.com",
+                        ".canvas-user-content.com",
+                        ".inscloudgate.net",
+                    )
+                )
+                if (
+                    parsed.scheme != "https"
+                    or parsed.username
+                    or parsed.password
+                    or parsed.port not in {None, 443}
+                    or not (host == "canvas.ust.hk" or storage)
+                ):
+                    raise ValueError(
+                        "Canvas file URL is not an approved storage endpoint"
+                    )
+                headers = {"Authorization": None}
+                if host != "canvas.ust.hk":
+                    headers["X-CSRF-Token"] = None
+                with requester._session.get(
+                    url, headers=headers, stream=True, allow_redirects=False, timeout=30
+                ) as response:
+                    if response.status_code in {301, 302, 303, 307, 308}:
+                        url = urljoin(url, response.headers.get("Location", ""))
+                        continue
+                    if response.status_code == 401:
+                        raise CanvasAPIError("Canvas session expired", status_code=401)
+                    if response.status_code == 403:
+                        raise CanvasAPIError(
+                            "Canvas file access denied", status_code=403
+                        )
+                    response.raise_for_status()
+                    if int(response.headers.get("Content-Length") or 0) > max_bytes:
+                        raise ValueError("File exceeds the download limit")
+                    total = 0
+                    with open(destination_path, "wb") as output:
+                        for block in response.iter_content(64 * 1024):
+                            total += len(block)
+                            if total > max_bytes:
+                                raise ValueError("File exceeds the download limit")
+                            output.write(block)
+                    return metadata
+            raise ValueError("Too many Canvas file redirects")
+
+        return self._call_canvas(_load, f"download bounded file {file_id}")
+
     def list_folders(self, *, course_id: str, limit: int = 150) -> list[dict[str, Any]]:
         def _load(canvas: Canvas) -> list[dict[str, Any]]:
             folders = canvas.get_course(course_id).get_folders(per_page=MAX_PER_PAGE)
@@ -205,7 +281,10 @@ class CanvasContentMixin:
             raise CanvasAPIError("course_ids is required")
 
         def _load(canvas: Canvas) -> list[dict[str, Any]]:
-            params: dict[str, Any] = {"active_only": active_only, "per_page": MAX_PER_PAGE}
+            params: dict[str, Any] = {
+                "active_only": active_only,
+                "per_page": MAX_PER_PAGE,
+            }
             if start_date:
                 params["start_date"] = start_date
             if end_date:
@@ -241,7 +320,9 @@ class CanvasContentMixin:
                     params={"per_page": MAX_PER_PAGE},
                 )
                 todo_items.extend(
-                    self._paginate_list(course_items, limit=safe_limit - len(todo_items))
+                    self._paginate_list(
+                        course_items, limit=safe_limit - len(todo_items)
+                    )
                 )
                 if len(todo_items) >= safe_limit:
                     break

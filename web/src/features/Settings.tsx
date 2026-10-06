@@ -3,6 +3,7 @@ import { Copy, Check, ArrowUpRight } from "lucide-react";
 import { api } from "../api";
 import { CanvasLink, ErrorNotice, Loading } from "../components";
 import type { Settings } from "../types";
+import { ProviderSettings } from "./Providers";
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -71,17 +72,7 @@ export function SettingsPage() {
             </p>
           </section>
           <section className="settings-section">
-            <h2>Model providers</h2>
-            <p>
-              Provider setup arrives in Phase C. It will support official OpenAI
-              and Anthropic API credentials, and OpenAI-compatible endpoints
-              such as local model servers.
-            </p>
-            <p className="muted">
-              No course text is sent to an AI provider by this foundation.
-              Consumer subscriptions remain accessible through your existing MCP
-              client.
-            </p>
+            <ProviderSettings />
           </section>
           <section className="settings-section">
             <h2>MCP clients</h2>
@@ -105,7 +96,7 @@ export function SettingsPage() {
             </p>
             <a
               className="external-link"
-          href="https://github.com/amzonmeeee/HKUST_Canvas_MCP#install"
+              href="https://github.com/amzonmeeee/HKUST_Canvas_MCP#install"
               target="_blank"
               rel="noopener noreferrer"
             >

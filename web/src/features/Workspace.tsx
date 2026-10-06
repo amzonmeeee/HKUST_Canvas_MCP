@@ -13,7 +13,11 @@ import {
 } from "lucide-react";
 import { api } from "../api";
 import { CanvasLink, ErrorNotice, Loading } from "../components";
-import type { Workspace } from "../types";
+import type { Citation, Workspace } from "../types";
+import { SourcesPanel } from "./Sources";
+import { ChatPanel } from "./Chat";
+import { StudioPanel } from "./Studio";
+import { SourceViewer } from "./StudyContent";
 
 export function WorkspacePage({
   workspaceId,
@@ -31,6 +35,13 @@ export function WorkspacePage({
   const [deleting, setDeleting] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
   const [studioOpen, setStudioOpen] = useState(true);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [providerId, setProviderId] = useState("");
+  const [viewer, setViewer] = useState<{
+    sourceId?: string;
+    citation?: Citation;
+  } | null>(null);
+  const [notesVersion, setNotesVersion] = useState(0);
   async function load() {
     setError("");
     try {
@@ -40,6 +51,10 @@ export function WorkspacePage({
     }
   }
   useEffect(() => {
+    setSelected([]);
+    setProviderId("");
+    setViewer(null);
+    setWorkspace(null);
     void load();
   }, [workspaceId]);
   async function save(event: React.FormEvent) {
@@ -218,22 +233,13 @@ export function WorkspacePage({
                 )}
               </button>
               {sourcesOpen && (
-                <div className="panel-body">
-                  <p className="phase-label">Next: source sync</p>
-                  <h3>Your course materials belong here.</h3>
-                  <p>
-                    Pages, files and module items will become selectable local
-                    sources in Phase B.
-                  </p>
-                  {workspace.canvas_course_id ? (
-                    <CanvasLink courseId={workspace.canvas_course_id} />
-                  ) : (
-                    <p className="muted">
-                      File uploads and manual sources will arrive with source
-                      sync.
-                    </p>
-                  )}
-                </div>
+                <SourcesPanel
+                  key={workspaceId}
+                  workspace={workspace}
+                  selected={selected}
+                  setSelected={setSelected}
+                  openSource={(sourceId) => setViewer({ sourceId })}
+                />
               )}
             </section>
             <section className="workbench-panel chat-panel">
@@ -243,31 +249,16 @@ export function WorkspacePage({
                   Conversation
                 </span>
               </h2>
-              <div className="chat-empty">
-                <span className="workspace-emblem" aria-hidden="true">
-                  <MessageSquare size={30} />
-                </span>
-                <h2>A workspace you can return to.</h2>
-                <p>
-                  Your workspace is saved. Grounded chat will arrive after local
-                  source sync and model providers are ready.
-                </p>
-                <p className="muted">
-                  You can already use the existing Canvas MCP server with your
-                  preferred MCP client.
-                </p>
-                <button
-                  className="button secondary"
-                  onClick={() => navigate("/settings")}
-                >
-                  View MCP settings
-                  <ArrowLeft
-                    className="arrow-forward"
-                    size={16}
-                    aria-hidden="true"
-                  />
-                </button>
-              </div>
+              <ChatPanel
+                key={workspaceId}
+                workspace={workspace}
+                sourceIds={selected}
+                providerId={providerId}
+                setProviderId={setProviderId}
+                openCitation={(citation) => setViewer({ citation })}
+                notesChanged={() => setNotesVersion((v) => v + 1)}
+                navigate={navigate}
+              />
             </section>
             <section className="workbench-panel studio-panel">
               <button
@@ -286,27 +277,24 @@ export function WorkspacePage({
                 )}
               </button>
               {studioOpen && (
-                <div className="panel-body">
-                  <p className="phase-label">After grounded chat</p>
-                  <h3>Turn understanding into practice.</h3>
-                  <ul className="studio-list">
-                    <li>
-                      Quizzes<span>Practice</span>
-                    </li>
-                    <li>
-                      Flashcards<span>Recall</span>
-                    </li>
-                    <li>
-                      Study guides<span>Review</span>
-                    </li>
-                  </ul>
-                  <p className="muted">
-                    Study outputs and local notes are planned for later phases.
-                  </p>
-                </div>
+                <StudioPanel
+                  key={workspaceId}
+                  workspaceId={workspaceId}
+                  sourceIds={selected}
+                  providerId={providerId}
+                  notesVersion={notesVersion}
+                  openCitation={(citation) => setViewer({ citation })}
+                />
               )}
             </section>
           </div>
+          {viewer && (
+            <SourceViewer
+              workspaceId={workspaceId}
+              {...viewer}
+              close={() => setViewer(null)}
+            />
+          )}
         </>
       )}
     </>
