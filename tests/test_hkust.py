@@ -134,3 +134,118 @@ def test_auth_probe_checks_hkust_without_following_redirects(monkeypatch, status
     assert status["auth_verified"] is (expected == "verified")
     assert get.call_args.args == ("https://canvas.ust.hk/api/v1/users/self",)
     assert get.call_args.kwargs["allow_redirects"] is False
+
+
+@pytest.mark.parametrize("url", [
+    "https://canvas.ust.hk/courses/123/assignments/42",
+    "HTTPS://CANVAS.UST.HK:443/courses/123/assignments/42",
+    "https://canvas.ust.hk:443/api/v1/courses/123/assignments/42",
+    "/courses/123/assignments/42",
+    "//canvas.ust.hk/courses/123/assignments/42",
+])
+def test_url_resolver_looks_up_hkust_urls_and_preserves_relative_paths(url, mock_client):
+    from specs.registry import dispatch_tool_call
+
+    mock_client.get_assignment.return_value = {"id": 42, "name": "UST Assignment"}
+    result = dispatch_tool_call("resolve_canvas_url", {"url": url})
+    assert "error" not in result
+    assert result["details"] is not None
+    assert result["resource_type"] == "assignment"
+    assert mock_client.get_assignment.call_args.kwargs["course_id"] == "123"
+    assert mock_client.get_assignment.call_args.kwargs["assignment_id"] == "42"
+
+
+@pytest.mark.parametrize("fetch_details", [True, False])
+@pytest.mark.parametrize("url", [
+    "https://umd.instructure.com/courses/123/assignments/42",
+    "https://school.instructure.com/courses/123/assignments/42",
+    "https://canvas.other.edu/courses/123/assignments/42",
+    "http://canvas.ust.hk/courses/123/assignments/42",
+    "https://canvas.ust.hk:8443/courses/123/assignments/42",
+    "https://canvas.ust.hk.evil.test/courses/123/assignments/42",
+    "https://canvas.ust.hk@other.test/courses/123/assignments/42",
+    "//other.instructure.com/courses/123/assignments/42",
+    "https://[invalid/courses/123/assignments/42",
+    "https://canvas.ust.hk:invalid/courses/123/assignments/42",
+])
+def test_url_resolver_rejects_foreign_origins_before_lookup(monkeypatch, mock_client, url, fetch_details):
+    from specs.registry import dispatch_tool_call
+
+    lookup = Mock()
+    monkeypatch.setattr("tools.resolvers.resolve_canvas_resource_details", lookup)
+    result = dispatch_tool_call("resolve_canvas_url", {"url": url, "fetch_details": fetch_details})
+    assert result["error"] == "invalid_argument"
+    lookup.assert_not_called()
+    assert mock_client.mock_calls == []
+
+
+@pytest.mark.parametrize("selection,expected_index,verified", [
+    ("env_name", 1, True),
+    ("env_path", 1, True),
+    ("env_name_and_path", 2, True),
+    ("saved_name", 1, True),
+    ("saved_path", 2, True),
+    ("default", 0, True),
+    ("default", 0, False),
+])
+def test_profile_diagnostics_match_effective_authentication(monkeypatch, tmp_path, selection, expected_index, verified):
+    from auth.chrome_cookies import ChromeProfile
+    from auth.inspect import describe_chrome_profiles
+
+    root = tmp_path / "Chrome"
+    profiles = [ChromeProfile(name, str(root / directory), None) for name, directory in [
+        ("Default", "Default"), ("UST", "Profile 1"), ("Other", "Profile 2"),
+    ]]
+    monkeypatch.delenv("CANVAS_CHROME_PROFILE", raising=False)
+    monkeypatch.delenv("CANVAS_CHROME_PROFILE_PATH", raising=False)
+    saved = {"chrome_profile_name": "Other", "chrome_profile_path": profiles[2].path}
+    if selection == "env_name":
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE", "UST")
+    elif selection == "env_path":
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE_PATH", profiles[1].path)
+    elif selection == "env_name_and_path":
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE", "UST")
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE_PATH", profiles[2].path)
+    elif selection == "saved_name":
+        saved = {"chrome_profile_name": "UST"}
+    elif selection == "saved_path":
+        saved = {"chrome_profile_path": str(root / "Profile 1" / ".." / "Profile 2")}
+    else:
+        saved = {}
+
+    monkeypatch.setattr("auth.profiles.load_settings", lambda: saved)
+    monkeypatch.setattr("auth.profiles._default_chrome_user_data_dir", lambda: root)
+    monkeypatch.setattr("auth.chrome_cookies.list_chrome_profiles", lambda **kwargs: profiles)
+    monkeypatch.setattr("auth.inspect.list_chrome_profiles", lambda: profiles)
+    monkeypatch.setattr("auth.inspect.list_canvas_cookie_domains", lambda **kwargs: ["canvas.ust.hk"])
+    monkeypatch.setattr("auth.inspect.get_auth_status", lambda **kwargs: {
+        "auth_status": "verified" if verified else "not_logged_in", "auth_verified": verified,
+    })
+    monkeypatch.setattr("client.read_chrome_session_cookies", lambda *args, **kwargs: ("session", "csrf"))
+
+    client = create_canvas_client_from_env()
+    diagnostics = describe_chrome_profiles()
+    selected = [profile for profile in diagnostics if profile["selected"]]
+    assert len(selected) == 1
+    assert Path(selected[0]["path"]).resolve() == Path(client.profile_path).resolve()
+    assert selected[0]["path"] == profiles[expected_index].path
+    assert selected[0]["active"] is verified
+    assert all(not profile["active"] for profile in diagnostics if not profile["selected"])
+
+
+@pytest.mark.parametrize("env_value", [None, "https://other.instructure.com"])
+def test_base_url_diagnostics_distinguish_fixed_site_from_ignored_env(monkeypatch, env_value):
+    from auth.probe import get_auth_status
+
+    if env_value is None:
+        monkeypatch.delenv("CANVAS_BASE_URL", raising=False)
+    else:
+        monkeypatch.setenv("CANVAS_BASE_URL", env_value)
+    monkeypatch.setattr("auth.probe.read_chrome_cookies", lambda *args, **kwargs: None)
+    monkeypatch.setattr("auth.probe.list_canvas_cookie_domains_for_profile", lambda **kwargs: ([], None))
+    monkeypatch.setattr("auth.probe.missing_chrome_session_error", lambda *args, **kwargs: CanvasAPIError("No session"))
+    status = get_auth_status(profile_path="/tmp/UST Profile")
+    assert status["configured_canvas_base_url"] == HKUST_CANVAS_BASE_URL
+    assert status["resolved_canvas_base_url"] == HKUST_CANVAS_BASE_URL
+    assert status["canvas_base_url_source"] == "fixed_hkust"
+    assert status["ignored_canvas_base_url_env"] == env_value

@@ -551,7 +551,7 @@ class TestGetCourseTabTool:
         mock_client.get_tab.return_value = {
             "id": "syllabus",
             "label": "Syllabus",
-            "html_url": "https://umd.instructure.com/courses/123/assignments/syllabus",
+            "html_url": "https://canvas.ust.hk/courses/123/assignments/syllabus",
         }
         mock_client.get_course.return_value = {
             "id": 123,
@@ -560,7 +560,7 @@ class TestGetCourseTabTool:
             "term": {},
             "public_syllabus": False,
             "syllabus_body": "<p>Hello</p>",
-            "html_url": "https://umd.instructure.com/courses/123",
+            "html_url": "https://canvas.ust.hk/courses/123",
         }
         from tools import get_course_tab
 
@@ -694,7 +694,7 @@ class TestResolveCanvasUrlTool:
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123/assignments/42",
+                    "url": "https://canvas.ust.hk/courses/123/assignments/42",
                     "fetch_details": True,
                 }
             )
@@ -715,7 +715,7 @@ class TestResolveCanvasUrlTool:
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123/discussion_topics/10",
+                    "url": "https://canvas.ust.hk/courses/123/discussion_topics/10",
                     "fetch_details": True,
                 }
             )
@@ -737,7 +737,7 @@ class TestResolveCanvasUrlTool:
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123/pages/home",
+                    "url": "https://canvas.ust.hk/courses/123/pages/home",
                     "fetch_details": True,
                 }
             )
@@ -756,7 +756,7 @@ class TestResolveCanvasUrlTool:
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123",
+                    "url": "https://canvas.ust.hk/courses/123",
                     "fetch_details": False,
                 }
             )
@@ -776,12 +776,12 @@ class TestResolveCanvasUrlTool:
                 "term": {},
                 "public_syllabus": False,
                 "syllabus_body": "<p>S</p>",
-                "html_url": "https://umd.instructure.com/courses/123",
+                "html_url": "https://canvas.ust.hk/courses/123",
             }
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123/assignments/syllabus",
+                    "url": "https://canvas.ust.hk/courses/123/assignments/syllabus",
                     "fetch_details": True,
                 }
             )
@@ -798,7 +798,7 @@ class TestResolveCanvasUrlTool:
 
             result = resolve_canvas_url(
                 {
-                    "url": "https://umd.instructure.com/courses/123/users",
+                    "url": "https://canvas.ust.hk/courses/123/users",
                     "fetch_details": True,
                 }
             )
@@ -810,7 +810,7 @@ class TestResolveCanvasUrlTool:
 
         result = resolve_canvas_url(
             {
-                "url": "https://umd.instructure.com/courses/123/external_tools/9",
+                "url": "https://canvas.ust.hk/courses/123/external_tools/9",
                 "fetch_details": False,
             }
         )
@@ -823,7 +823,7 @@ class TestResolveCanvasUrlTool:
 
         result = resolve_canvas_url(
             {
-                "url": "https://umd.instructure.com/courses/1401744/home",
+                "url": "https://canvas.ust.hk/courses/1401744/home",
                 "fetch_details": False,
             }
         )

@@ -4,12 +4,14 @@ from dataclasses import dataclass
 from typing import Any
 
 from auth import CanvasAPIError
+from auth.resolve import HKUST_CANVAS_BASE_URL
 from tools.common import (
     candidate_ids_for_lookup,
     canvas_client,
     expand_canvas_id,
     extract_discussion_topic_id,
     id_aliases,
+    invalid_argument,
     is_forbidden_error,
     is_not_found_error,
     missing_argument,
@@ -345,7 +347,21 @@ def resolve_canvas_url(args: dict[str, Any]) -> dict[str, Any]:
     if not url:
         return missing_argument("url")
 
-    parsed, path, parts = parse_canvas_url_path(url)
+    try:
+        parsed, path, parts = parse_canvas_url_path(url)
+        if parsed.scheme or parsed.netloc:
+            scheme = parsed.scheme.lower() or "https"
+            if (
+                scheme != "https"
+                or parsed.hostname != "canvas.ust.hk"
+                or parsed.port not in (None, 443)
+            ):
+                return invalid_argument(
+                    f"Canvas URL must use the HKUST origin {HKUST_CANVAS_BASE_URL}."
+                )
+    except ValueError as exc:
+        return invalid_argument(f"Invalid Canvas URL: {exc}")
+
     course_id_raw, resource_type, resource_id_raw = parse_canvas_course_resource(parts)
     course_id = str(course_id_raw).strip() if course_id_raw else None
     resource_id = (
