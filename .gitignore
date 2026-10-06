@@ -17,6 +17,63 @@ dist/
 .env
 .env.*
 
+# Local authentication, browser data, and databases
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+*.db
+*.db-*
+*.keychain
+*.keychain-db
+*.p12
+*.pfx
+Cookies
+Cookies-*
+Login Data
+Login Data-*
+Local State
+Preferences
+Secure Preferences
+Default/
+Profile */
+System Profile/
+chrome-profiles/
+browser-profiles/
+browser-data/
+user-data/
+cookies/
+sessions/
+cookies*.json
+cookies*.txt
+session*.json
+tokens*.json
+credentials*.json
+settings.local.json
+mcp.local.json
+.mcp.json
+.cache/
+.config/canvasmcp/
+
+# Personal Canvas exports, downloaded files, and local schedule records
+data/
+exports/
+downloads/
+scheduled-submits/
+previews/
+jobs/
+
+# Live smoke-test output and debug captures may contain personal data
+smoke-results/
+smoke-summary*.json
+*smoke-summary.json
+debug/
+debug-dumps/
+dumps/
+*.har
+*.log
+*.dump
+
 # Local implementation notes
 plans/
 UJs.md

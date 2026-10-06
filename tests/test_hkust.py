@@ -155,6 +155,26 @@ def test_url_resolver_looks_up_hkust_urls_and_preserves_relative_paths(url, mock
     assert mock_client.get_assignment.call_args.kwargs["assignment_id"] == "42"
 
 
+def test_url_resolver_preserves_plain_numeric_hkust_assignment_ids(mock_client):
+    from specs.registry import dispatch_tool_call
+
+    mock_client.get_assignment.return_value = {"id": 67890, "name": "UST Assignment"}
+    result = dispatch_tool_call("resolve_canvas_url", {
+        "url": "https://canvas.ust.hk/courses/12345/assignments/67890",
+    })
+
+    assert result["resource_id"] == "67890"
+    assert result["resource_id_aliases"] == ["67890"]
+    assert result["detail_error"] is None
+    assert result["details"]["assignment"]["id"] == "67890"
+    mock_client.get_assignment.assert_called_once_with(
+        course_id="12345",
+        assignment_id="67890",
+        include_submission=False,
+        include_discussion_topic=True,
+    )
+
+
 @pytest.mark.parametrize("fetch_details", [True, False])
 @pytest.mark.parametrize("url", [
     "https://umd.instructure.com/courses/123/assignments/42",

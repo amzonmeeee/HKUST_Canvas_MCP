@@ -135,8 +135,7 @@ def course_id_prefix(course_id: str | None) -> str | None:
     full_match = re.fullmatch(r"(\d+)000000(\d+)", trimmed)
     if full_match:
         return full_match.group(1)
-    if trimmed.isdigit() and len(trimmed) >= 4:
-        return trimmed[:4]
+    # Ordinary numeric course IDs do not encode a shard prefix.
     return None
 
 
