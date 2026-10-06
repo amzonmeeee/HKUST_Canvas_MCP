@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
-from .chrome_cookies import resolve_chrome_profile
+from .chrome_cookies import _default_chrome_user_data_dir, resolve_chrome_profile
 from .settings import load_settings
 
 
@@ -23,12 +24,21 @@ def resolve_chrome_profile_path(
     *,
     profile_name: str | None = None,
     profile_path: str | None = None,
-) -> str | None:
-    selected_name, selected_path = resolve_selected_chrome_profile()
+) -> str:
+    if profile_name is None and profile_path is None:
+        profile_name, profile_path = resolve_selected_chrome_profile()
+    if not profile_name and not profile_path:
+        root = _default_chrome_user_data_dir()
+        if root is not None:
+            return str(root / "Default")
+    if profile_path:
+        return str(Path(profile_path).expanduser().resolve())
     resolved = resolve_chrome_profile(
-        profile_name=profile_name or selected_name,
-        profile_path=profile_path or selected_path,
+        profile_name=profile_name,
+        profile_path=profile_path,
     )
     if resolved is None:
-        return profile_path or selected_path
+        from .errors import CanvasAPIError
+
+        raise CanvasAPIError(f"Chrome profile could not be resolved: {profile_name or 'Default'}")
     return resolved.path

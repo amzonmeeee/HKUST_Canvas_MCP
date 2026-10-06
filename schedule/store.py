@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from auth.context import capture_auth_context, validate_auth_context
+
 PREVIEW_TTL = timedelta(minutes=15)
 JOB_STATUSES = frozenset(
     {"pending", "submitted", "missed", "auth_failed", "failed", "cancelled"}
@@ -186,6 +188,7 @@ def create_job(
     caffeinate: bool = False,
     caffeinate_pid: int | None = None,
     job_id: str | None = None,
+    auth_context: dict[str, str] | None = None,
     **extra: Any,
 ) -> dict[str, Any]:
     resolved_id = job_id or secrets.token_urlsafe(16)
@@ -197,6 +200,9 @@ def create_job(
             "course_id": str(course_id),
             "assignment_id": str(assignment_id),
             "assignment_name": assignment_name,
+            "auth_context": validate_auth_context(
+                auth_context if auth_context is not None else capture_auth_context()
+            ),
             "submission_type": submission_type,
             "file_ids": list(file_ids or []),
             "filenames": list(filenames or []),

@@ -3,22 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from .chrome_cookies import (
-    detect_canvas_base_url,
     list_canvas_cookie_domains,
     list_chrome_profiles,
 )
 
 from .probe import get_auth_status
 from .settings import load_settings
-
-
-def _profile_status(auth_status: str) -> dict[str, Any]:
-    return {
-        "auth_mode": None,
-        "auth_verified": False,
-        "auth_status": auth_status,
-        "error": None,
-    }
+from .resolve import resolve_canvas_base_url
 
 
 def describe_chrome_profiles() -> list[dict[str, Any]]:
@@ -26,15 +17,8 @@ def describe_chrome_profiles() -> list[dict[str, Any]]:
     profiles: list[dict[str, Any]] = []
     for profile in list_chrome_profiles():
         domains = list_canvas_cookie_domains(profile_path=profile.path)
-        if len(domains) == 1:
-            base_url = detect_canvas_base_url(profile_path=profile.path)
-            status = get_auth_status(base_url=base_url, profile_path=profile.path)
-        elif domains:
-            base_url = None
-            status = _profile_status("multiple_domains")
-        else:
-            base_url = None
-            status = _profile_status("no_canvas")
+        base_url = resolve_canvas_base_url()
+        status = get_auth_status(base_url=base_url, profile_path=profile.path)
 
         is_selected = bool(selected_path and selected_path == profile.path)
         profiles.append(

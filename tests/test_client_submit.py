@@ -20,7 +20,7 @@ def _patch_canvas(assignment=None, *, canvas=None):
 
 
 def _write_client() -> CanvasClient:
-    return CanvasClient(base_url="https://school.instructure.com")
+    return CanvasClient(cookie_provider=lambda: ("session", "csrf"))
 
 
 class TestUploadSubmissionFile:

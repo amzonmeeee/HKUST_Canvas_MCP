@@ -77,8 +77,8 @@ def assignment_submission_download_path(
 
 
 @lru_cache(maxsize=1)
-def canvas_client():
-    return create_canvas_client_from_env()
+def canvas_client(*, base_url: str | None = None, profile_path: str | None = None):
+    return create_canvas_client_from_env(base_url=base_url, profile_path=profile_path)
 
 
 def reset_canvas_client() -> None:

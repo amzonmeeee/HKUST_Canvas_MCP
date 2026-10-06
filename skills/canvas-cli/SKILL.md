@@ -35,10 +35,10 @@ Use `auth-status` first when any Canvas command fails unexpectedly.
 
 Auth recovery workflow:
 
-- Confirm the user is logged in to Canvas in Chrome, then rerun `canvas auth-status`.
+- Confirm the user is logged in to https://canvas.ust.hk in Chrome, then rerun `canvas auth-status`.
 - If multiple Chrome profiles exist, run `canvas settings profiles`, choose the profile with Canvas cookies, then rerun `canvas auth-status`.
 - If the saved profile is stale or wrong, run `canvas settings clear`, then choose the profile again.
-- If Canvas host detection is wrong, use `CANVAS_BASE_URL=https://school.instructure.com` for subsequent commands.
+- The Canvas host is fixed to https://canvas.ust.hk; `CANVAS_BASE_URL` cannot override it. Missing HKUST cookies produce an error even if another school's session exists.
 - On macOS, Keychain prompts for Chrome cookie access must be approved.
 
 ## Course Resolution
@@ -100,6 +100,7 @@ Best practice:
 - If `requires_override` is true, tell the user a pending job exists and only confirm with `--override` if they agree to replace it.
 - Scheduled confirm (not `--now`) prints a sleep warning. Repeat it: sleep, shutdown, or crash means it will not submit. They can ignore the warning if they know the machine will stay on. `--caffeinate` on confirm keeps the Mac awake until fire finishes.
 - Never call `canvas scheduled fire`. That is launchd-only.
+- Previews and jobs save their Canvas address and Chrome profile path. Confirm and scheduled execution use that original profile; cookies are refreshed from Chrome rather than stored. Recreate legacy previews/jobs that lack this context.
 
 ## Rubrics
 
@@ -211,8 +212,8 @@ Best practice:
 ## URL Lookup
 
 ```bash
-canvas url "https://school.instructure.com/courses/<course_id>/assignments/<assignment_id>"
-canvas url "https://school.instructure.com/courses/<course_id>/files/<file_id>" --no-details
+canvas url "https://canvas.ust.hk/courses/<course_id>/assignments/<assignment_id>"
+canvas url "https://canvas.ust.hk/courses/<course_id>/files/<file_id>" --no-details
 ```
 
 Best practice:

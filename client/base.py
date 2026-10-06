@@ -14,9 +14,10 @@ from canvasapi.paginated_list import PaginatedList
 from canvasapi.util import combine_kwargs
 
 from auth import CanvasAPIError, apply_chrome_session_to_http_session
+from auth.resolve import HKUST_CANVAS_BASE_URL, require_hkust_canvas_url
 from auth.urls import canvas_root_url, normalize_canvas_api_base_url
 
-DEFAULT_CANVAS_BASE_URL = "https://canvas.instructure.com"
+DEFAULT_CANVAS_BASE_URL = HKUST_CANVAS_BASE_URL
 MAX_PER_PAGE = 100
 
 _CANVAS_EXCEPTION_STATUS: tuple[tuple[type[CanvasException], int], ...] = (
@@ -37,9 +38,11 @@ def _status_code_for_canvas_exception(exc: CanvasException) -> int | None:
 class CanvasClientBase:
     base_url: str = DEFAULT_CANVAS_BASE_URL
     cookie_provider: Callable[[], tuple[str, str] | None] | None = None
+    profile_path: str | None = None
     _root_url: str = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self.base_url = require_hkust_canvas_url(self.base_url)
         self._root_url = canvas_root_url(normalize_canvas_api_base_url(self.base_url))
 
     @staticmethod
@@ -51,27 +54,31 @@ class CanvasClientBase:
 
     def _inject_session_cookies(self, canvas: Canvas) -> None:
         if not self.cookie_provider:
-            return
+            raise CanvasAPIError("No Chrome session provider configured for HKUST Canvas.")
         cookies = self.cookie_provider()
         if not cookies:
-            return
+            raise CanvasAPIError(
+                "No usable Chrome session for https://canvas.ust.hk. "
+                "Sign in to HKUST Canvas in Chrome and retry."
+            )
         session_cookie, csrf_token = cookies
         requester = getattr(canvas, "_Canvas__requester", None)
         if requester is None:
-            return
+            raise CanvasAPIError("Unsupported canvasapi requester; Chrome session injection failed.")
         requester.access_token = ""
         http_session = getattr(requester, "_session", None)
-        if http_session is not None:
-            apply_chrome_session_to_http_session(
-                http_session,
-                base_url=self._root_url,
-                cookies=(session_cookie, csrf_token),
-            )
+        if http_session is None:
+            raise CanvasAPIError("Unsupported canvasapi HTTP session; Chrome session injection failed.")
+        apply_chrome_session_to_http_session(
+            http_session,
+            base_url=self._root_url,
+            cookies=(session_cookie, csrf_token),
+        )
 
     def _run_with_canvas(self, call: Callable[[Canvas], Any]) -> Any:
         canvas = Canvas(self._root_url, "")
-        self._inject_session_cookies(canvas)
         try:
+            self._inject_session_cookies(canvas)
             return call(canvas)
         finally:
             self._close_canvas(canvas)

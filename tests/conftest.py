@@ -5,6 +5,25 @@ from unittest import mock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def isolated_auth_and_network(monkeypatch, tmp_path):
+    """Tests must mock browser access and HTTP instead of using personal sessions."""
+    def blocked(*args, **kwargs):
+        raise AssertionError("Mock Chrome cookies and HTTP requests in tests")
+
+    monkeypatch.setattr("browser_cookie3.chrome", blocked)
+    monkeypatch.setattr("requests.sessions.Session.send", blocked)
+    downloads = tmp_path / "downloads"
+    downloads.mkdir()
+    for module in ("tools.common", "tools.files", "tools.submissions"):
+        monkeypatch.setattr(f"{module}.download_dir", lambda: downloads)
+    from tools.common import reset_canvas_client
+
+    reset_canvas_client()
+    yield
+    reset_canvas_client()
+
+
 @pytest.fixture
 def mock_client():
     client = mock.MagicMock()

@@ -1,82 +1,78 @@
 # HKUST Canvas MCP
 
-專為 UST BB 體質設計嘅 Canvas MCP。
+**Built for the delicate constitution of UST BBs.**
 
-功課 deadline、lecture notes、announcements，唔使每次都喺 Canvas 入面逐頁撳。喺 terminal 或支援 MCP 嘅 AI agent 入面，就可以查課程、睇功課要求、搵教材同跟進待辦事項。
+Lecture notes, assignment deadlines, announcements, and one fewer tab to click. Access HKUST Canvas from your terminal or an MCP-compatible AI agent.
 
-由 [amzonmeeee](https://github.com/amzonmeeee) 獨立維護，專注香港科技大學（HKUST）嘅 [Canvas](https://canvas.ust.hk) 使用體驗。沿用原專案嘅 **Chrome session 認證**：先喺 Chrome 登入 Canvas，再由本機工具讀取現有 session。
+Independently maintained by [amzonmeeee](https://github.com/amzonmeeee), based on [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp). Authentication uses your existing **Chrome Canvas session**: sign in through Chrome, then let the local tools use that session.
 
-- `canvas-mcp` — 將 Canvas 工具提供畀 MCP clients。
-- `canvas` — 喺 terminal 使用同一套工具。
-- 課程、功課、成績、公告、討論區、pages、modules 同檔案查詢。
-- 功課提交支援先 preview、再 confirm；macOS 另有本機排程提交。
+- `canvas-mcp` — Canvas tools for MCP clients.
+- `canvas` — the same tools in your terminal.
+- Courses, assignments, grades, announcements, discussions, pages, modules, and files.
+- Preview and confirm assignment submissions, with optional local scheduling on macOS.
 
-Agent skill：[`skills/canvas-cli/SKILL.md`](skills/canvas-cli/SKILL.md)。完整指令表：[`docs/cli.md`](docs/cli.md)。
+Agent skill: [`skills/canvas-cli/SKILL.md`](skills/canvas-cli/SKILL.md). Full command table: [`docs/cli.md`](docs/cli.md).
 
-## 安裝
+## Install
 
-需要 Python 3.11 或以上，以及 `uv`。
+Requires Python 3.11 or later and `uv`.
 
 ```bash
 uv tool install git+https://github.com/amzonmeeee/HKUST_Canvas_MCP.git
 canvas --help
 ```
 
-要固定版本，可以喺 repo URL 後加 `@main` 或 `@<tag-or-commit>`。
+Append `@main` or `@<tag-or-commit>` to the repository URL to select a revision.
 
-## 連接 HKUST Canvas
+## Connect to HKUST Canvas
 
-先用 Chrome 開啟 [canvas.ust.hk](https://canvas.ust.hk)，完成 HKUST 登入，確認已經入到 Canvas。
-
-目前透過 `CANVAS_BASE_URL` 指定 HKUST 站點。喺執行 CLI 嘅 terminal 設定：
+Open [canvas.ust.hk](https://canvas.ust.hk) in Chrome, complete your HKUST login, and make sure you can see your Canvas dashboard. Then run:
 
 ```bash
-export CANVAS_BASE_URL=https://canvas.ust.hk
 canvas auth-status
 canvas courses --all --limit 5
 ```
 
-macOS 如出現 Keychain 存取提示，允許後先可以讀取 Chrome cookies。Session 過期時，返 Chrome 重新登入 Canvas，再試一次。
+The Canvas address is fixed to `https://canvas.ust.hk`. `CANVAS_BASE_URL` does not change it. If the selected Chrome profile has no usable HKUST Canvas session, the tools report an error. Sessions for other schools are never selected as a fallback.
 
-如果有多個 Chrome profiles，可以查看並選擇已登入 HKUST Canvas 嗰個：
+On macOS, allow the Keychain prompt when reading Chrome cookies. When the session expires, sign in again through Chrome and retry.
+
+If you use multiple Chrome profiles, select the one signed in to HKUST Canvas:
 
 ```bash
 canvas settings profiles
 canvas settings choose-profile
 ```
 
-非互動環境要直接提供 profile 名稱：`canvas settings choose-profile "你的 Chrome profile 名稱"`。亦可以用 `CANVAS_CHROME_PROFILE` 或 `CANVAS_CHROME_PROFILE_PATH` 指定。
+For non-interactive use, supply the actual profile name: `canvas settings choose-profile "Your Chrome profile name"`. You can also set `CANVAS_CHROME_PROFILE` or `CANVAS_CHROME_PROFILE_PATH`. Environment selection takes precedence over saved settings; without a selection, the Chrome `Default` profile is used. An unknown profile name produces an error.
 
-## MCP 設定
+## MCP setup
 
-將以下設定加到你使用嘅 MCP client。`env` 會確保 MCP server 使用 HKUST Canvas，即使 client 唔係由 terminal 啟動。
+Add this configuration to your MCP client:
 
 ```json
 {
   "mcpServers": {
     "hkust-canvas": {
       "command": "canvas-mcp",
-      "args": ["--transport", "stdio"],
-      "env": {
-        "CANVAS_BASE_URL": "https://canvas.ust.hk"
-      }
+      "args": ["--transport", "stdio"]
     }
   }
 }
 ```
 
-如需指定 Chrome profile，可喺同一個 `env` 加入 `CANVAS_CHROME_PROFILE`，值填實際 profile 名稱。
+To select a Chrome profile for the MCP server, add an `env` object with `CANVAS_CHROME_PROFILE` set to your actual profile name, or `CANVAS_CHROME_PROFILE_PATH` set to its absolute path.
 
-亦可以手動啟動；以下指令沿用上面設定嘅 `CANVAS_BASE_URL`：
+You can also start the server manually:
 
 ```bash
 canvas-mcp --transport stdio
 canvas-mcp --transport http --host 127.0.0.1 --port 8000
 ```
 
-## CLI 用法
+## CLI examples
 
-先搵返自己嘅課程：
+Find your courses and pending work:
 
 ```bash
 canvas courses --all
@@ -84,7 +80,7 @@ canvas resolve "COMP1021" --all
 canvas todo
 ```
 
-以下 `12345` 同 `67890` 分別係示例 course ID 同 assignment ID，請換成你課程嘅實際 ID：
+Replace the example course ID `12345` and assignment ID `67890` with your actual IDs:
 
 ```bash
 canvas course context 12345
@@ -94,11 +90,19 @@ canvas files list 12345
 canvas url "https://canvas.ust.hk/courses/12345/assignments/67890"
 ```
 
-各指令嘅 flags 以 `canvas --help` 同子指令嘅 `--help` 為準。想直接呼叫底層工具，可以用 `canvas tool list` 同 `canvas tool run <name> --args '{...}'`。
+Use `canvas --help` and each subcommand's `--help` for flags. Raw tools are available through `canvas tool list` and `canvas tool run <name> --args '{...}'`.
 
-## 輸出格式
+## Scheduled submissions
 
-Terminal 預設顯示易讀格式；redirect 或 pipe 輸出時預設使用 compact JSON。全域 `--output` 選項要放喺子指令前面：
+A successful preview records the HKUST Canvas address and the absolute Chrome profile path. Confirmation, file upload, scheduled execution, and cancellation cleanup use that saved context, even if you later change your profile settings.
+
+Cookies and CSRF tokens are not saved in previews or jobs. They are read again from the original Chrome profile when needed. If that profile's HKUST session expires, scheduled execution reports `auth_failed`. Existing previews or jobs without saved Canvas/profile context must be recreated before they can submit.
+
+Scheduling uses macOS `launchd`. The machine must be running and awake at the scheduled time; confirmation supports `--caffeinate` to keep it awake.
+
+## Output
+
+Terminal output uses readable views; redirected or piped output defaults to compact JSON. Global output options go before the subcommand:
 
 ```bash
 canvas --output pretty assignments submissions scheduled
@@ -106,21 +110,24 @@ canvas --output json courses
 export CANVAS_OUTPUT=json
 ```
 
-`--output auto|pretty|json` 優先於 `CANVAS_OUTPUT`。`tool` 指令同內部排程執行預設使用 JSON，即使喺 terminal 執行亦一樣。JSON 保留完整回應；pretty 格式會省略部分常規 metadata，並標示省略情況。
+`--output auto|pretty|json` overrides `CANVAS_OUTPUT`. Raw `tool` commands and internal scheduler execution default to JSON. JSON preserves the full response; pretty views mark omitted routine metadata.
 
-JSON 模式嘅操作錯誤會以結構化資料輸出到 stdout；pretty 模式則喺 stderr 顯示。Preview 被拒絕時 exit code 為 1，工具參數無效時為 2。`auth-status` 同 settings 查詢會回報狀態；框架嘅 help 同選項解析錯誤保留 Typer 原本嘅文字格式。JSON 模式選擇 profile 時需要明確提供名稱，唔會彈出互動提示。
+Operational errors use structured JSON on stdout in JSON mode and readable diagnostics on stderr in pretty mode. Refused previews exit 1; invalid tool arguments exit 2. Auth-status and settings inspection report their status without failing the command. Framework help and option parsing errors retain Typer's text format. JSON profile selection requires an explicit name and never prompts.
 
-## 本機開發
+## Development and tests
 
 ```bash
 git clone https://github.com/amzonmeeee/HKUST_Canvas_MCP.git
 cd HKUST_Canvas_MCP
-uv sync
+uv sync --locked
 uv run canvas --help
+uv run pytest
 ```
 
-## 原專案與致謝
+The Chrome-cookie adapter, Canvas SDK, and FastMCP versions are pinned to the versions in the existing lockfile. Regression tests exercise the real Canvas SDK's session injection, cookie refresh, CSRF decoding, and saved submission context. Tests mock browser access and HTTP requests.
 
-本專案以 [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp) 為基礎發展，現由 amzonmeeee 獨立維護，方向集中喺 HKUST Canvas。
+## Original project and acknowledgements
 
-感謝原作者提供 Canvas CLI、MCP 工具、Chrome session 認證同測試基礎。原專案採用 MIT License；本專案保留原作者嘅版權聲明，詳見 [LICENSE](LICENSE)。
+This project builds on [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp) and is independently maintained by amzonmeeee for HKUST Canvas.
+
+Thanks to the original author for the Canvas CLI, MCP tools, Chrome-session authentication, and test foundation. The original project uses the MIT License; its copyright notice is retained in [LICENSE](LICENSE).

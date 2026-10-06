@@ -4,16 +4,17 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from auth import get_auth_status
+from auth.context import validate_auth_context
 from schedule.caffeinate import stop_caffeinate
 from schedule.launchd import bootout_job
 from schedule.notify import notify
 from schedule.store import get_job, parse_submit_at, update_job
 
 
-def canvas_client():
+def canvas_client(**context):
     from tools.common import canvas_client as _canvas_client
 
-    return _canvas_client()
+    return _canvas_client(**context)
 
 
 MISSED_SKEW = timedelta(seconds=60)
@@ -62,9 +63,9 @@ def _finish(job_id: str, **fields: Any) -> dict[str, Any]:
     return get_job(job_id) or job
 
 
-def _auth_verified() -> tuple[bool, str | None]:
+def _auth_verified(context: dict[str, str]) -> tuple[bool, str | None]:
     try:
-        status = get_auth_status()
+        status = get_auth_status(base_url=context["base_url"], profile_path=context["profile_path"])
     except Exception as exc:
         return False, str(exc)
     if status.get("auth_verified"):
@@ -83,12 +84,16 @@ def fire_job(job_id: str) -> dict[str, Any]:
     if _now() > submit_at + MISSED_SKEW:
         return _finish(job_id, status="missed", error="Fire ran after the 60s window")
 
-    ok, error = _auth_verified()
+    try:
+        context = validate_auth_context(job.get("auth_context"))
+    except Exception as exc:
+        return _finish(job_id, status="auth_failed", error=str(exc))
+    ok, error = _auth_verified(context)
     if not ok:
         return _finish(job_id, status="auth_failed", error=error)
 
     try:
-        client = canvas_client()
+        client = canvas_client(**context)
         result = client.submit_assignment(
             course_id=job["course_id"],
             assignment_id=job["assignment_id"],

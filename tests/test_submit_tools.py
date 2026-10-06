@@ -17,6 +17,7 @@ from tools.submit import (
 
 FUTURE_AT = "2099-01-01T12:00:00-04:00"
 PAST_AT = "2020-01-01T12:00:00-04:00"
+AUTH_CONTEXT = {"base_url": "https://canvas.ust.hk", "profile_path": "/tmp/UST Profile"}
 
 
 def _assignment(**overrides):
@@ -58,6 +59,7 @@ def _stored_preview(**overrides):
         "now": False,
         "submit_at": FUTURE_AT,
         "requires_override": False,
+        "auth_context": dict(AUTH_CONTEXT),
     }
     preview.update(overrides)
     return preview
@@ -80,6 +82,8 @@ def txt_path(tmp_path: Path) -> Path:
 @pytest.fixture
 def submit_mocks(pdf_path: Path):
     client = mock.MagicMock()
+    client.base_url = AUTH_CONTEXT["base_url"]
+    client.profile_path = AUTH_CONTEXT["profile_path"]
     client.get_assignment.return_value = _assignment()
     client.upload_submission_file.return_value = {
         "id": "99",
@@ -104,6 +108,7 @@ def submit_mocks(pdf_path: Path):
         "filenames": ["essay.pdf"],
         "submit_at": FUTURE_AT,
         "caffeinate": False,
+        "auth_context": dict(AUTH_CONTEXT),
     }
 
     with (
@@ -144,6 +149,14 @@ def submit_mocks(pdf_path: Path):
 
 
 class TestPreviewAssignmentSubmission:
+    def test_preview_persists_canvas_and_profile(self, submit_mocks, pdf_path):
+        result = preview_assignment_submission({
+            "course_id": "1", "assignment_id": "42", "submission_type": "online_upload",
+            "file_paths": [str(pdf_path)], "now": True,
+        })
+        assert result["auth_context"] == AUTH_CONTEXT
+        assert submit_mocks["save_preview"].call_args.args[0]["auth_context"] == AUTH_CONTEXT
+
     def test_requires_ids_and_type(self, submit_mocks):
         assert preview_assignment_submission({})["error"] == "missing_argument"
         assert preview_assignment_submission({"course_id": "1"})["error"] == (
@@ -427,6 +440,22 @@ class TestPreviewAssignmentSubmission:
 
 
 class TestConfirmAssignmentSubmission:
+    def test_confirm_uses_saved_profile_and_copies_it_to_job(self, submit_mocks, monkeypatch):
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE_PATH", "/tmp/Changed Profile")
+        with mock.patch("tools.submit.canvas_client", return_value=submit_mocks["client"]) as factory:
+            result = confirm_assignment_submission({"preview_token": "tok123"})
+        assert result["ok"] is True
+        factory.assert_called_once_with(**AUTH_CONTEXT)
+        assert submit_mocks["create_job"].call_args.kwargs["auth_context"] == AUTH_CONTEXT
+
+    def test_legacy_preview_is_refused_before_upload(self, submit_mocks):
+        submit_mocks["stored"].pop("auth_context")
+        result = confirm_assignment_submission({"preview_token": "tok123"})
+        assert result["error"] == "canvas_api_error"
+        assert "context is missing" in result["message"]
+        submit_mocks["client"].upload_submission_file.assert_not_called()
+        submit_mocks["create_job"].assert_not_called()
+
     def test_missing_or_expired_token(self, submit_mocks):
         submit_mocks["load_preview"].return_value = None
         result = confirm_assignment_submission({"preview_token": "gone"})
@@ -443,7 +472,7 @@ class TestConfirmAssignmentSubmission:
         submit_mocks["consume_preview"].assert_not_called()
 
     def test_override_required(self, submit_mocks, pdf_path):
-        pending = {"id": "oldjob", "status": "pending", "file_ids": ["88"]}
+        pending = {"id": "oldjob", "status": "pending", "file_ids": ["88"], "auth_context": dict(AUTH_CONTEXT)}
         with mock.patch("tools.submit.get_pending_job", return_value=pending):
             result = confirm_assignment_submission({"preview_token": "tok123"})
         assert result["error"] == "override_required"
@@ -451,7 +480,7 @@ class TestConfirmAssignmentSubmission:
         submit_mocks["client"].upload_submission_file.assert_not_called()
 
     def test_override_cancels_old_job(self, submit_mocks, pdf_path):
-        pending = {"id": "oldjob", "status": "pending", "file_ids": ["88"]}
+        pending = {"id": "oldjob", "status": "pending", "file_ids": ["88"], "auth_context": dict(AUTH_CONTEXT)}
         with (
             mock.patch("tools.submit.get_pending_job", return_value=pending),
             mock.patch("tools.submit.cancel_job") as cancel_job,
@@ -527,6 +556,14 @@ class TestConfirmAssignmentSubmission:
 
 
 class TestScheduledJobTools:
+    def test_cancel_uses_job_profile_for_file_cleanup(self, submit_mocks, monkeypatch):
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE_PATH", "/tmp/Changed Profile")
+        with mock.patch("tools.submit.canvas_client", return_value=submit_mocks["client"]) as factory:
+            result = cancel_scheduled_submission({"job_id": "job1"})
+        assert result["ok"] is True
+        factory.assert_called_once_with(**AUTH_CONTEXT)
+        submit_mocks["client"].delete_user_file.assert_called_once_with(file_id="99")
+
     def test_list_and_get(self, submit_mocks):
         listed = list_scheduled_submissions({})
         assert listed["count"] == 1

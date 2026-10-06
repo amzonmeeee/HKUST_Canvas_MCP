@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from auth import CanvasAPIError, get_auth_status
+from auth.context import validate_auth_context
 from schedule.caffeinate import start_caffeinate
 from schedule.fire import cancel_job
 from schedule.launchd import install_job
@@ -68,9 +69,11 @@ def _body_preview(body: Any) -> str | None:
     return str(body)[:BODY_PREVIEW_LIMIT]
 
 
-def _auth_status() -> dict[str, Any]:
+def _auth_status(client=None) -> dict[str, Any]:
     try:
-        return get_auth_status()
+        if client is None:
+            return get_auth_status()
+        return get_auth_status(base_url=client.base_url, profile_path=client.profile_path)
     except Exception as exc:
         return {
             "auth_verified": False,
@@ -307,8 +310,9 @@ def _refuse_message(reasons: list[str]) -> str:
     return f"Preview refused: {details}"
 
 
-def _load_assignment(course_id: str, assignment_id: str) -> dict[str, Any]:
-    return canvas_client().get_assignment(
+def _load_assignment(course_id: str, assignment_id: str, *, client=None) -> dict[str, Any]:
+    client = client if client is not None else canvas_client()
+    return client.get_assignment(
         course_id=course_id,
         assignment_id=assignment_id,
         include_submission=True,
@@ -316,11 +320,11 @@ def _load_assignment(course_id: str, assignment_id: str) -> dict[str, Any]:
     )
 
 
-def _delete_uploaded_files(file_ids: list[Any]) -> list[dict[str, Any]]:
+def _delete_uploaded_files(file_ids: list[Any], *, client=None) -> list[dict[str, Any]]:
     notes: list[dict[str, Any]] = []
     if not file_ids:
         return notes
-    client = canvas_client()
+    client = client if client is not None else canvas_client()
     for file_id in file_ids:
         ident = str(file_id)
         try:
@@ -333,13 +337,20 @@ def _delete_uploaded_files(file_ids: list[Any]) -> list[dict[str, Any]]:
 def _cancel_pending(job: dict[str, Any]) -> list[dict[str, Any]]:
     file_ids = list(job.get("file_ids") or [])
     cancel_job(str(job["id"]))
-    return _delete_uploaded_files(file_ids)
+    if not file_ids:
+        return []
+    try:
+        context = validate_auth_context(job.get("auth_context"))
+        client = canvas_client(**context)
+    except CanvasAPIError as exc:
+        return [{"file_id": str(file_id), "error": str(exc)} for file_id in file_ids]
+    return _delete_uploaded_files(file_ids, client=client)
 
 
 def _upload_files(
-    course_id: str, assignment_id: str, file_paths: list[str]
+    course_id: str, assignment_id: str, file_paths: list[str], *, client=None
 ) -> tuple[list[str], list[str]]:
-    client = canvas_client()
+    client = client if client is not None else canvas_client()
     file_ids: list[str] = []
     filenames: list[str] = []
     for raw in file_paths:
@@ -409,11 +420,13 @@ def preview_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
         return missing_argument("body")
 
     try:
-        assignment = _load_assignment(course_id, assignment_id)
+        client = canvas_client()
+        context = validate_auth_context({"base_url": client.base_url, "profile_path": client.profile_path})
+        assignment = _load_assignment(course_id, assignment_id, client=client)
     except CanvasAPIError as exc:
         return canvas_api_tool_error(exc)
 
-    auth_status = _auth_status()
+    auth_status = _auth_status(client)
     pending_job = get_pending_job(course_id, assignment_id)
     submit_at, extra_reasons = _resolve_submit_at(
         now=now,
@@ -455,6 +468,7 @@ def preview_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
         "now": now,
         "planned_payload": _planned_payload(submission_type, file_paths, body),
         "auth_status": auth_status,
+        "auth_context": context,
         "pending_job": pending_job,
         "warnings": warnings,
         "requires_override": pending_job is not None,
@@ -477,6 +491,7 @@ def preview_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
             "now": now,
             "submit_at": submit_at.isoformat() if submit_at is not None else None,
             "requires_override": pending_job is not None,
+            "auth_context": context,
         }
     )
     preview["preview_token"] = record["preview_token"]
@@ -498,6 +513,12 @@ def confirm_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
             "Preview token is missing, expired, or already used",
         )
 
+    try:
+        context = validate_auth_context(preview.get("auth_context"))
+        client = canvas_client(**context)
+    except CanvasAPIError as exc:
+        return canvas_api_tool_error(exc)
+
     now = bool(preview.get("now", False))
     if caffeinate and now:
         return invalid_argument("caffeinate cannot be used with now")
@@ -511,11 +532,11 @@ def confirm_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
         body = str(body)
 
     try:
-        assignment = _load_assignment(course_id, assignment_id)
+        assignment = _load_assignment(course_id, assignment_id, client=client)
     except CanvasAPIError as exc:
         return canvas_api_tool_error(exc)
 
-    auth_status = _auth_status()
+    auth_status = _auth_status(client)
     submit_at = None
     extra: list[str] = []
     if not now:
@@ -566,14 +587,14 @@ def confirm_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
         file_ids: list[str] = []
         filenames: list[str] = []
         if submission_type == "online_upload":
-            file_ids, filenames = _upload_files(course_id, assignment_id, file_paths)
+            file_ids, filenames = _upload_files(course_id, assignment_id, file_paths, client=client)
     except CanvasAPIError as exc:
         return canvas_api_tool_error(exc)
 
     assignment_name = preview.get("assignment_name") or assignment.get("name")
 
     if now:
-        auth_status = _auth_status()
+        auth_status = _auth_status(client)
         if not auth_status.get("auth_verified"):
             return tool_error(
                 "auth_not_verified",
@@ -581,7 +602,7 @@ def confirm_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
                 auth_status=auth_status,
             )
         try:
-            submission = canvas_client().submit_assignment(
+            submission = client.submit_assignment(
                 course_id=course_id,
                 assignment_id=assignment_id,
                 submission=_submission_payload(
@@ -611,6 +632,7 @@ def confirm_assignment_submission(args: dict[str, Any]) -> dict[str, Any]:
         filenames=filenames,
         body=body if submission_type == "online_text_entry" else None,
         caffeinate=caffeinate,
+        auth_context=context,
     )
     install_job(job["id"], job["submit_at"])
     if caffeinate:

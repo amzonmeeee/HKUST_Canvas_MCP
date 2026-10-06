@@ -10,9 +10,9 @@ readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
-  "browser-cookie3>=0.20.1",
-  "canvasapi>=3.4.0",
-  "fastmcp>=2.12.2",
+  "browser-cookie3==0.20.1",
+  "canvasapi==3.4.0",
+  "fastmcp==3.0.2",
   "jsonschema>=4.0",
   "rich>=13.7.0",
   "typer>=0.12.0",

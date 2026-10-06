@@ -8,7 +8,7 @@ import requests
 from .chrome_cookies import read_chrome_cookies
 from .errors import missing_chrome_session_error
 from .profiles import resolve_chrome_profile_path, resolve_selected_chrome_profile
-from .resolve import resolve_canvas_base_url
+from .resolve import require_hkust_canvas_url, resolve_canvas_base_url
 from .session import (
     apply_chrome_session_to_http_session,
     list_canvas_cookie_domains_for_profile,
@@ -24,9 +24,10 @@ def get_auth_status(
     profile_name: str | None = None,
     profile_path: str | None = None,
 ) -> dict[str, Any]:
-    resolved_base_url = base_url or resolve_canvas_base_url(
-        profile_name=profile_name,
-        profile_path=profile_path,
+    resolved_base_url = (
+        require_hkust_canvas_url(base_url)
+        if base_url
+        else resolve_canvas_base_url(profile_name=profile_name, profile_path=profile_path)
     )
     selected_name, selected_profile_path = resolve_selected_chrome_profile()
     resolved_profile_path = resolve_chrome_profile_path(

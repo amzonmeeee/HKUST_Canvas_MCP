@@ -290,7 +290,7 @@ class TestAuthPriority:
             with pytest.raises(CanvasAPIError):
                 ensure_canvas_auth_configured()
 
-    def test_uses_env_base_url_override(self):
+    def test_ignores_env_base_url_override(self):
         with mock.patch.dict(
             os.environ,
             {"CANVAS_BASE_URL": "https://umd.instructure.com"},
@@ -298,9 +298,9 @@ class TestAuthPriority:
         ):
             from auth.resolve import resolve_canvas_base_url
 
-            assert resolve_canvas_base_url() == "https://umd.instructure.com"
+            assert resolve_canvas_base_url() == "https://canvas.ust.hk"
 
-    def test_uses_detected_base_url_when_env_unset(self):
+    def test_uses_hkust_when_env_unset(self):
         with (
             mock.patch.dict(os.environ, {}, clear=True),
             mock.patch(
@@ -310,27 +310,19 @@ class TestAuthPriority:
         ):
             from auth.resolve import resolve_canvas_base_url
 
-            assert resolve_canvas_base_url() == "https://umd.instructure.com"
+            assert resolve_canvas_base_url() == "https://canvas.ust.hk"
 
-    def test_inference_error_mentions_chrome_before_env_override(self):
+    def test_multiple_canvas_sites_do_not_change_hkust_target(self):
         with (
             mock.patch.dict(os.environ, {}, clear=True),
-            mock.patch("auth.resolve.detect_canvas_base_url", return_value=None),
             mock.patch(
                 "auth.errors.list_canvas_cookie_domains",
                 return_value=["umd.instructure.com", "school.instructure.com"],
             ),
         ):
-            from auth.errors import CanvasAPIError
             from auth.resolve import resolve_canvas_base_url
 
-            with pytest.raises(CanvasAPIError) as excinfo:
-                resolve_canvas_base_url()
-
-        message = str(excinfo.value)
-        assert "Found multiple Canvas sites in Chrome" in message
-        assert "Open the target Canvas site in Chrome and retry" in message
-        assert "set CANVAS_BASE_URL" in message
+            assert resolve_canvas_base_url() == "https://canvas.ust.hk"
 
 
 class TestCreateCanvasClientFromEnv:
@@ -339,7 +331,7 @@ class TestCreateCanvasClientFromEnv:
     def test_chrome_cookies_sets_cookie_provider(self):
         cookies = ("session_val", "csrf_val")
         with (
-            mock.patch("auth.resolve.resolve_canvas_base_url", return_value="https://umd.instructure.com"),
+            mock.patch("client.resolve_canvas_base_url", return_value="https://canvas.ust.hk"),
             mock.patch("client.read_chrome_session_cookies", return_value=cookies),
         ):
             from client import create_canvas_client_from_env
@@ -347,11 +339,11 @@ class TestCreateCanvasClientFromEnv:
             client = create_canvas_client_from_env()
             assert client.cookie_provider is not None
             assert client.cookie_provider() == cookies
-            assert client.base_url == "https://umd.instructure.com"
+            assert client.base_url == "https://canvas.ust.hk"
 
     def test_raises_without_chrome_cookies(self):
         with (
-            mock.patch("auth.resolve.resolve_canvas_base_url", return_value="https://umd.instructure.com"),
+            mock.patch("client.resolve_canvas_base_url", return_value="https://canvas.ust.hk"),
             mock.patch("client.read_chrome_session_cookies", return_value=None),
         ):
             from auth import CanvasAPIError

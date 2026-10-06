@@ -126,6 +126,11 @@ class TestPreviewStore:
                 "cookies": "canvas_session=abc",
                 "csrf_token": "secret",
                 "file_bytes": b"nope",
+                "auth_context": {
+                    "base_url": "https://canvas.ust.hk",
+                    "profile_path": "/tmp/UST Profile",
+                    "csrf_token": "nested-secret",
+                },
             }
         )
         raw = json.loads(
@@ -134,6 +139,9 @@ class TestPreviewStore:
         assert "cookies" not in raw
         assert "csrf_token" not in raw
         assert "file_bytes" not in raw
+        assert raw["auth_context"] == {
+            "base_url": "https://canvas.ust.hk", "profile_path": "/tmp/UST Profile"
+        }
 
 
 class TestPendingByAssignment:
@@ -223,6 +231,43 @@ class TestCancelHelpers:
 
 
 class TestFireJob:
+    def test_fire_uses_saved_profile_after_settings_change(self, schedule_env, monkeypatch):
+        context = {"base_url": "https://canvas.ust.hk", "profile_path": "/tmp/Original UST Profile"}
+        job = _pending_job(auth_context=context)
+        monkeypatch.setenv("CANVAS_CHROME_PROFILE_PATH", "/tmp/Different Profile")
+        client = mock.MagicMock()
+        client.submit_assignment.return_value = {"id": 9}
+        with (
+            mock.patch("schedule.fire.canvas_client", return_value=client) as factory,
+            mock.patch("schedule.fire.get_auth_status", return_value={"auth_verified": True}) as probe,
+        ):
+            result = fire_job(job["id"])
+        assert result["status"] == "submitted"
+        assert result["auth_context"] == context
+        factory.assert_called_once_with(**context)
+        probe.assert_called_once_with(**context)
+
+    def test_legacy_job_without_profile_fails_before_probe_or_submit(self, schedule_env):
+        job = _pending_job()
+        update_job(job["id"], auth_context=None)
+        with (
+            mock.patch("schedule.fire.canvas_client") as factory,
+            mock.patch("schedule.fire.get_auth_status") as probe,
+        ):
+            result = fire_job(job["id"])
+        assert result["status"] == "auth_failed"
+        assert "context is missing" in result["error"]
+        factory.assert_not_called()
+        probe.assert_not_called()
+
+    def test_job_for_other_canvas_is_refused(self, schedule_env):
+        job = _pending_job()
+        update_job(job["id"], auth_context={"base_url": "https://other.instructure.com", "profile_path": "/tmp/UST"})
+        with mock.patch("schedule.fire.canvas_client") as factory:
+            result = fire_job(job["id"])
+        assert result["status"] == "auth_failed"
+        factory.assert_not_called()
+
     def test_not_pending_is_noop(self, schedule_env, mock_notify):
         job = _pending_job()
         update_job(job["id"], status="submitted")

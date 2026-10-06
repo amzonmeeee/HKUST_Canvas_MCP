@@ -1,10 +1,19 @@
 from __future__ import annotations
 
-import os
+from .errors import CanvasAPIError
+from .urls import canvas_root_url
 
-from .chrome_cookies import detect_canvas_base_url
-from .errors import base_url_inference_error
-from .profiles import resolve_chrome_profile_path
+HKUST_CANVAS_BASE_URL = "https://canvas.ust.hk"
+
+
+def require_hkust_canvas_url(base_url: str) -> str:
+    try:
+        root = canvas_root_url(base_url)
+    except ValueError as exc:
+        raise CanvasAPIError(str(exc)) from exc
+    if root != HKUST_CANVAS_BASE_URL:
+        raise CanvasAPIError(f"This project only supports {HKUST_CANVAS_BASE_URL}.")
+    return HKUST_CANVAS_BASE_URL
 
 
 def resolve_canvas_base_url(
@@ -12,18 +21,5 @@ def resolve_canvas_base_url(
     profile_name: str | None = None,
     profile_path: str | None = None,
 ) -> str:
-    configured = os.getenv("CANVAS_BASE_URL", "").strip()
-    if configured:
-        return configured
-    detected = detect_canvas_base_url(
-        profile_path=resolve_chrome_profile_path(
-            profile_name=profile_name,
-            profile_path=profile_path,
-        )
-    )
-    if detected:
-        return detected
-    raise base_url_inference_error(
-        profile_name=profile_name,
-        profile_path=profile_path,
-    )
+    """Always target HKUST, regardless of other sessions or environment settings."""
+    return HKUST_CANVAS_BASE_URL
