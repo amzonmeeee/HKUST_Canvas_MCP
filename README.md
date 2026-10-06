@@ -17,6 +17,8 @@ Agent skill: [`skills/canvas-cli/SKILL.md`](skills/canvas-cli/SKILL.md). Full co
 
 Requires Python 3.11 or later and `uv`.
 
+The package is named `hkust-canvas-mcp`; its commands are `canvas` and `canvas-mcp`. If you previously installed the original `canvasmcp` with `uv`, run `uv tool uninstall canvasmcp` before installing this project to avoid command-name conflicts.
+
 ```bash
 uv tool install git+https://github.com/amzonmeeee/HKUST_Canvas_MCP.git
 canvas --help

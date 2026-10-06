@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "canvasmcp"
-version = "0.1.0"
-description = "Python Canvas MCP server for Canvas LMS"
+name = "hkust-canvas-mcp"
+version = "0.1.1"
+description = "Canvas MCP server for HKUST students"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
