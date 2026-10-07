@@ -3,6 +3,7 @@ import { Plus, Check, ExternalLink } from "lucide-react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 import type { Provider } from "../types";
+import { LocalClients } from "./LocalClients";
 
 export function ProviderSettings() {
   const [providers, setProviders] = useState<Provider[]>([]),
@@ -59,10 +60,14 @@ export function ProviderSettings() {
           kind,
           model,
           base_url: kind === "compatible" ? url : "",
-          ...(key ? { api_key: key } : {}),
-          remove_key: removeKey,
+          ...(key && kind !== "codex" && kind !== "claude_code"
+            ? { api_key: key }
+            : {}),
+          remove_key:
+            kind === "codex" || kind === "claude_code" ? false : removeKey,
           streaming,
-          native_tools: tools,
+          native_tools:
+            kind === "codex" || kind === "claude_code" ? false : tools,
           structured_output: structured,
         },
       });
@@ -106,11 +111,12 @@ export function ProviderSettings() {
     <>
       <h2>Model providers</h2>
       <p>
-        Connect an official API or a local model server. Keys are kept in your
-        system credential store. Select a provider in each workspace.
+        Use a signed-in CLI, an official API or a local model server. Select a
+        connected provider in each workspace.
       </p>
       {error && <ErrorNotice message={error} />}
       {loading && <Loading>Loading providers…</Loading>}
+      <LocalClients providers={providers} onConnected={load} />
       <div className="provider-list">
         {providers.map((p) => (
           <article className="provider-row" key={p.id}>
@@ -123,15 +129,21 @@ export function ProviderSettings() {
                     ? "Compatible API"
                     : p.kind === "openai"
                       ? "OpenAI"
-                      : "Anthropic"}
+                      : p.kind === "codex"
+                        ? "Codex CLI"
+                        : p.kind === "claude_code"
+                          ? "Claude Code CLI"
+                          : "Anthropic"}
                 </span>
               </p>
               <small>
-                {p.has_key
-                  ? "Key saved in system credential store"
-                  : p.kind === "compatible"
-                    ? "No API key saved"
-                    : "API key required"}{" "}
+                {p.kind === "codex" || p.kind === "claude_code"
+                  ? "Uses your CLI login"
+                  : p.has_key
+                    ? "Key saved in system credential store"
+                    : p.kind === "compatible"
+                      ? "No API key saved"
+                      : "API key required"}{" "}
                 ·{" "}
                 {p.capabilities.native_tools
                   ? "Live tools enabled"
@@ -171,8 +183,8 @@ export function ProviderSettings() {
             {deleting === p.id && (
               <div className="inline-confirm">
                 <p>
-                  Remove this provider and its saved API key? Saved
-                  conversations and study materials stay local.
+                  Remove this provider configuration? Saved conversations and
+                  study materials stay local.
                 </p>
                 <button
                   className="button danger small"
@@ -195,7 +207,7 @@ export function ProviderSettings() {
       {!show ? (
         <button className="button secondary" onClick={() => edit()}>
           <Plus size={16} />
-          Add provider
+          Add API or local server
         </button>
       ) : (
         <form className="provider-form" onSubmit={(e) => void save(e)}>
@@ -215,16 +227,34 @@ export function ProviderSettings() {
               <select
                 value={kind}
                 disabled={!!editing}
-                onChange={(e) => setKind(e.target.value as Provider["kind"])}
+                onChange={(e) => {
+                  const value = e.target.value as Provider["kind"];
+                  setKind(value);
+                  setKey("");
+                  if (value === "codex" || value === "claude_code") {
+                    setModel("default");
+                    if (!name)
+                      setName(
+                        value === "codex" ? "Codex CLI" : "Claude Code CLI",
+                      );
+                    setTools(false);
+                    setStructured(true);
+                  }
+                }}
               >
                 <option value="openai">OpenAI API</option>
                 <option value="anthropic">Anthropic API</option>
                 <option value="compatible">OpenAI-compatible / local</option>
+                <option value="codex">Codex CLI (existing login)</option>
+                <option value="claude_code">
+                  Claude Code CLI (existing login)
+                </option>
               </select>
             </label>
           </div>
           <label>
-            Model identifier
+            Model identifier{" "}
+            {kind === "codex" || kind === "claude_code" ? '(or "default")' : ""}
             <input
               required
               maxLength={160}
@@ -252,23 +282,25 @@ export function ProviderSettings() {
               </p>
             </>
           )}
-          <label>
-            {editing
-              ? "Replace API key (leave blank to keep it)"
-              : `API key${kind === "compatible" ? " (optional for local servers)" : ""}`}
-            <input
-              type="password"
-              autoComplete="new-password"
-              spellCheck={false}
-              value={key}
-              maxLength={1000}
-              onChange={(e) => {
-                setKey(e.target.value);
-                setRemoveKey(false);
-              }}
-            />
-          </label>
-          {editing && (
+          {kind !== "codex" && kind !== "claude_code" && (
+            <label>
+              {editing
+                ? "Replace API key (leave blank to keep it)"
+                : `API key${kind === "compatible" ? " (optional for local servers)" : ""}`}
+              <input
+                type="password"
+                autoComplete="new-password"
+                spellCheck={false}
+                value={key}
+                maxLength={1000}
+                onChange={(e) => {
+                  setKey(e.target.value);
+                  setRemoveKey(false);
+                }}
+              />
+            </label>
+          )}
+          {editing && kind !== "codex" && kind !== "claude_code" && (
             <label className="checkbox-label">
               <input
                 type="checkbox"
@@ -281,38 +313,46 @@ export function ProviderSettings() {
               Remove the saved key
             </label>
           )}
-          <fieldset className="provider-capabilities">
-            <legend>Model support</legend>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={streaming}
-                onChange={(e) => setStreaming(e.target.checked)}
-              />
-              Stream responses
-            </label>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={tools}
-                onChange={(e) => setTools(e.target.checked)}
-              />
-              This model supports native tool calling
-            </label>
+          {kind !== "codex" && kind !== "claude_code" ? (
+            <fieldset className="provider-capabilities">
+              <legend>Model support</legend>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={streaming}
+                  onChange={(e) => setStreaming(e.target.checked)}
+                />
+                Stream responses
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={tools}
+                  onChange={(e) => setTools(e.target.checked)}
+                />
+                This model supports native tool calling
+              </label>
+              <p className="muted">
+                Enable tools only if the selected model supports them. Without
+                tools, use explicit Live Canvas actions. Study Studio validates
+                generated JSON for either mode.
+              </p>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={structured}
+                  onChange={(e) => setStructured(e.target.checked)}
+                />
+                This model supports native JSON Schema output
+              </label>
+            </fieldset>
+          ) : (
             <p className="muted">
-              Enable tools only if the selected model supports them. Without
-              tools, use explicit Live Canvas actions. Study Studio validates
-              generated JSON for either mode.
+              Uses the native CLI login. Streaming and validated study materials
+              are enabled. Use Live Canvas actions for current Canvas checks and
+              write previews.
             </p>
-            <label className="checkbox-label">
-              <input
-                type="checkbox"
-                checked={structured}
-                onChange={(e) => setStructured(e.target.checked)}
-              />
-              This model supports native JSON Schema output
-            </label>
-          </fieldset>
+          )}
           <div className="form-actions">
             <button className="button primary" disabled={busy}>
               {busy ? "Saving…" : "Save provider"}
@@ -334,11 +374,11 @@ export function ProviderSettings() {
         Cloud providers receive your prompts, conversation history and retrieved
         excerpts from selected sources only when you send or generate. Local
         endpoints receive the same context. A connection test sends only a short
-        test prompt and may incur an API charge.
+        test prompt and uses the provider's billing or account quota.
       </p>
       <p className="muted">
         A ChatGPT or Claude subscription is separate from API billing. You can
-        continue to use your subscription through an MCP-capable client.
+        use the CLI's existing login here, or use an MCP-capable desktop client.
       </p>
       <div className="provider-docs">
         <a

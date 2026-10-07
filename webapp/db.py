@@ -4,6 +4,7 @@ import os
 import sqlite3
 import sys
 import tempfile
+import time
 from contextlib import closing
 from datetime import UTC, datetime
 from pathlib import Path
@@ -66,7 +67,21 @@ class WorkspaceRepository:
                 raise ValueError(
                     "This database needs a newer version of the web application."
                 )
-            db.execute("PRAGMA journal_mode=WAL")
+            # Concurrent first launches can fail the journal-mode lock upgrade
+            # immediately, even with SQLite's busy timeout. Retry only that lock.
+            deadline = time.monotonic() + 10
+            while True:
+                try:
+                    db.execute("PRAGMA journal_mode=WAL")
+                    break
+                except sqlite3.OperationalError as exc:
+                    if (
+                        getattr(exc, "sqlite_errorcode", 0) & 0xFF
+                        not in {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}
+                        or time.monotonic() >= deadline
+                    ):
+                        raise
+                    time.sleep(0.025)
             with db:
                 db.execute("BEGIN IMMEDIATE")
                 version = db.execute("PRAGMA user_version").fetchone()[0]

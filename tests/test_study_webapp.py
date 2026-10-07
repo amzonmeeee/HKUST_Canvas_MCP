@@ -1202,7 +1202,7 @@ def test_parallel_database_launches_keep_migrations_atomic(tmp_path):
         return repository
 
     with ThreadPoolExecutor(max_workers=4) as pool:
-        repositories = list(pool.map(initialize, range(4)))
+        repositories = list(pool.map(initialize, range(16)))
     with sqlite3.connect(repositories[0].path) as db:
         assert db.execute("PRAGMA user_version").fetchone()[0] == SCHEMA_VERSION
     assert repositories[0].create(title="Still works")["title"] == "Still works"
@@ -1531,3 +1531,74 @@ def test_module_inventory_uses_canonical_items_and_indexes_item_locators(setup):
         c["locator"].get("item_id") == "2" and c["locator"].get("module_id") == "1"
         for c in chunks
     )
+
+
+def test_connect_native_provider_is_idempotent_and_never_stores_keys(
+    setup, monkeypatch
+):
+    client, _app, _, _, _, secrets, _ = setup
+
+    async def inspect(kind):
+        return {"model": "synthetic-model"}
+
+    monkeypatch.setattr("webapp.routes.inspect_login", inspect)
+    first = client.post("/api/providers/local/codex")
+    again = client.post("/api/providers/local/codex")
+    assert first.status_code == again.status_code == 201
+    assert first.json()["id"] == again.json()["id"]
+    assert first.json()["credential_store"] == "native_cli"
+    assert first.json()["has_key"] is False
+    assert first.json()["capabilities"]["native_tools"] is False
+    assert first.json()["capabilities"]["structured_output"] is True
+    assert secrets.values == {}
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("api_key", "SYNTHETIC-KEY"),
+        ("remove_key", True),
+        ("native_tools", True),
+        ("base_url", "https://example.test/v1"),
+    ],
+)
+def test_native_provider_rejects_api_credentials_endpoints_and_tools(
+    setup, monkeypatch, field, value
+):
+    client, _, _, _, _, secrets, _ = setup
+    monkeypatch.setattr("webapp.routes.find_cli", lambda _: "/synthetic/codex")
+    result = client.post(
+        "/api/providers",
+        json={
+            "name": "Synthetic Codex",
+            "kind": "codex",
+            "model": "default",
+            field: value,
+        },
+    )
+    assert result.status_code == 422
+    assert secrets.values == {}
+
+
+def test_native_connect_requires_web_csrf_before_inspecting_login(setup, monkeypatch):
+    client, *_ = setup
+    inspect = Mock()
+    monkeypatch.setattr("webapp.routes.inspect_login", inspect)
+    client.headers.pop("X-Workbench-CSRF")
+    response = client.post("/api/providers/local/claude_code")
+    assert response.status_code == 403
+    inspect.assert_not_called()
+
+
+def test_native_missing_login_is_actionable_without_account_details(setup, monkeypatch):
+    client, *_ = setup
+
+    async def inspect(kind):
+        raise ProviderError(
+            "cli_auth", "Sign in to Claude Code CLI, then connect again.", 401
+        )
+
+    monkeypatch.setattr("webapp.routes.inspect_login", inspect)
+    result = client.post("/api/providers/local/claude_code")
+    assert result.status_code == 401
+    assert result.json()["error"]["code"] == "cli_auth"

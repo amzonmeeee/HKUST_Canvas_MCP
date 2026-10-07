@@ -104,10 +104,14 @@ canvas web --port 0 --data-dir /absolute/path/outside-the-repository
 
 ### Providers
 
-Add a provider in **Settings → Model providers**, enter a model identifier available to your account/server, save and use **Test connection**. The test sends only a short test prompt and may incur an API charge.
+In **Settings → Model providers**, choose **Use existing login** beside Codex CLI or Claude Code CLI. The app checks the native CLI login without generating a response and fills in the provider configuration. If needed, use **Sign in** to open the official login in Terminal on macOS (other platforms show a command to copy), finish login, then connect. No API key is required for this route. Installing a CLI remains your choice; the workbench does not install one.
+
+For APIs and local servers, choose **Add API or local server**, enter an available model identifier and save. **Test connection** sends only a short test prompt and uses the provider's billing or account quota. Return to your workspace to select the connected provider.
 
 | Provider | Configuration | Credential |
 | --- | --- | --- |
+| Codex CLI | Already-installed `codex`, including the macOS Codex app's bundled binary when available; current configured model or `default` | Existing native CLI login |
+| Claude Code CLI | Already-installed `claude`; `default` uses its account's default model, or edit to an available model/alias | Existing native CLI login |
 | OpenAI | Official Responses API; enter your model identifier | Official API key |
 | Anthropic | Official Messages API; enter your model identifier | Official API key |
 | OpenAI-compatible gateway | HTTPS base URL ending in `/v1`, plus model identifier | Optional API key |
@@ -116,7 +120,17 @@ Add a provider in **Settings → Model providers**, enter a model identifier ava
 
 Enable streaming, native tool calling or native JSON Schema output only when the selected model/endpoint supports them. Without native tools, chat remains available and explicit **Live Canvas actions** still work. Studio validates JSON and citations in either mode and permits at most one JSON repair request. Provider rate limits and network failures are not automatically retried. Native schema support follows the provider's API; gateways vary.
 
-Keys are stored through `keyring` in a supported system credential store: macOS Keychain, Windows Credential Locker, Secret Service or KWallet. There is no plaintext fallback. The UI shows whether a key is saved, never its value. Keyless local configurations do not access Keychain. Changing a configured endpoint requires removing its old key before saving another. A ChatGPT/Claude consumer subscription is separate from API billing; use the existing MCP server with your subscription's MCP-capable client if preferred. The app never reuses an AI website's browser cookies.
+API keys are stored through `keyring` in a supported system credential store: macOS Keychain, Windows Credential Locker, Secret Service or KWallet. There is no plaintext fallback. The UI shows whether a key is saved, never its value. Keyless local-server configurations do not access Keychain. Changing a configured API endpoint requires removing its old key before saving another. API billing is separate from consumer subscriptions. The native CLI adapters use the CLI's own supported authentication and account limits; the workbench never copies its tokens, reads its credential files, or reuses an AI website's browser cookies. Your CLI may access its own credential store.
+
+CLI inference uses a fresh temporary directory and ephemeral session for each request. Inherited MCP servers, hooks, plugins, shell/browser/file tools and skills are disabled; Codex also uses a read-only sandbox without approvals. Chat and Studio receive only the application-supplied prompt, compatible conversation history and selected retrieved excerpts. CLI providers do not expose native Canvas tools: use **Live Canvas actions** for reads and human-confirmed write previews. The adapters use the [official Codex app-server protocol](https://learn.chatgpt.com/docs/app-server) and [Claude Code noninteractive CLI](https://code.claude.com/docs/en/cli-reference). A CLI too old to support these flags/protocols fails with an update/login message; there is no fallback to unrestricted execution.
+
+### Codex app and Claude Desktop
+
+**Settings → MCP clients** detects standard macOS installations in `/Applications` and `~/Applications`. **Connect Canvas** adds the `hkust-canvas` MCP entry while preserving other configuration, then **Open app** launches the detected client. Quit and reopen the client to load the new entry. Claude Desktop configuration is merged atomically with owner-only file permissions; malformed configurations are left unchanged. These actions run only when clicked, and do not install software.
+
+**Copy MCP setup** and **Setup guide** are available for manual setup and other platforms. Codex shares its MCP configuration with its CLI. For Claude Desktop, add the supplied entry under `mcpServers` in **Settings → Developer → Edit Config**, keeping existing entries. The generated configuration uses the current Python environment's absolute launcher and selected Chrome profile, so spaces in paths and desktop PATH differences are handled. Only the profile name is forwarded, never Canvas cookies or tokens. See the [Codex MCP guide](https://learn.chatgpt.com/docs/extend/mcp) and [Claude Desktop local MCP guide](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop).
+
+Desktop MCP connects Canvas tools to conversations **inside that desktop client**. For answers **inside the workbench**, select a CLI/API/local-server provider above. Signing into a desktop app alone may not sign into its CLI; use the displayed CLI sign-in flow when required.
 
 ### Live Canvas actions and approval
 

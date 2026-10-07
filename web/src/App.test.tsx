@@ -70,6 +70,13 @@ beforeEach(() => {
         };
       else if (path === "/api/workspaces" && method === "GET")
         result = { workspaces: stored };
+      else if (path === "/api/local-clients")
+        result = {
+          cli: [],
+          desktop: [],
+          mcp_config: "{}",
+          can_open_login: false,
+        };
       else if (path === "/api/providers") result = { providers: [] };
       else if (path.endsWith("/sources")) result = { sources: [] };
       else if (path.endsWith("/conversations")) result = { conversations: [] };

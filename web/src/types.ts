@@ -72,7 +72,7 @@ export type Citation = {
 export type Provider = {
   id: string;
   name: string;
-  kind: "openai" | "anthropic" | "compatible";
+  kind: "openai" | "anthropic" | "compatible" | "codex" | "claude_code";
   model: string;
   base_url: string;
   has_key: boolean;

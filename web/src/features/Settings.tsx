@@ -4,6 +4,7 @@ import { api } from "../api";
 import { CanvasLink, ErrorNotice, Loading } from "../components";
 import type { Settings } from "../types";
 import { ProviderSettings } from "./Providers";
+import { LocalClients } from "./LocalClients";
 
 export function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -76,6 +77,7 @@ export function SettingsPage() {
           </section>
           <section className="settings-section">
             <h2>MCP clients</h2>
+            <LocalClients desktop />
             <p>
               The existing MCP server continues to work with Claude, Codex and
               other MCP-capable clients.

@@ -146,6 +146,48 @@ async function mockApi(page: Page) {
       };
     else if (path === "/api/workspaces" && method === "GET")
       result = { workspaces };
+    else if (path === "/api/local-clients")
+      result = {
+        cli: [
+          {
+            kind: "codex",
+            name: "Codex CLI",
+            available: true,
+            login_command: "codex login",
+            mcp_command: "codex mcp add synthetic",
+          },
+          {
+            kind: "claude_code",
+            name: "Claude Code CLI",
+            available: true,
+            login_command: "claude auth login",
+            mcp_command: "claude mcp add synthetic",
+          },
+        ],
+        desktop: [
+          { kind: "codex", name: "Codex app", available: true },
+          { kind: "claude", name: "Claude Desktop", available: false },
+        ],
+        mcp_config: '{"mcpServers":{}}',
+        can_open_login: false,
+      };
+    else if (path === "/api/providers/local/codex") {
+      providers = [
+        {
+          ...syntheticProvider,
+          name: "Codex CLI",
+          kind: "codex",
+          credential_store: "native_cli",
+          capabilities: {
+            streaming: true,
+            native_tools: false,
+            structured_output: true,
+          },
+        },
+      ];
+      result = providers[0];
+    } else if (path.endsWith("/connect"))
+      result = { connected: true, restart_required: true };
     else if (path === "/api/providers" && method === "GET")
       result = { providers };
     else if (path === "/api/providers" && method === "POST") {
@@ -430,7 +472,7 @@ test("source sync, configured streaming chat, citations, quiz practice and local
 }) => {
   await page.goto("/#session=synthetic-launch");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
-  await page.getByRole("button", { name: "Add provider" }).click();
+  await page.getByRole("button", { name: "Add API or local server" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Synthetic local model");
   await page
     .getByRole("combobox", { name: "Provider", exact: true })
@@ -531,4 +573,39 @@ test("Canvas writes require exact preview and a separate human confirm click", a
   await expect(
     page.getByRole("button", { name: "Confirm Canvas write" }),
   ).not.toBeVisible();
+});
+
+test("existing CLI login and desktop connection are usable at both screen sizes", async ({
+  page,
+}) => {
+  await page.goto("/#session=synthetic-launch");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const codex = page.locator(".local-client-row").filter({
+    has: page.getByRole("heading", { name: "Codex CLI", exact: true }),
+  });
+  await codex.getByRole("button", { name: "Use existing login" }).click();
+  await expect(
+    page
+      .locator(".provider-row")
+      .getByText("Uses your CLI login", { exact: false }),
+  ).toBeVisible();
+  const desktop = page.locator(".local-client-row").filter({
+    has: page.getByRole("heading", { name: "Codex app", exact: true }),
+  });
+  await desktop.getByRole("button", { name: "Connect Canvas" }).click();
+  await expect(page.getByText(/Canvas MCP connected/)).toBeVisible();
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-native-settings-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-native-settings-mobile.png",
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });

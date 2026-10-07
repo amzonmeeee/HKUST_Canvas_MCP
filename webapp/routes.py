@@ -8,6 +8,13 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from .native_providers import (
+    KINDS,
+    ClaudeCodeProvider,
+    CodexProvider,
+    find_cli,
+    inspect_login,
+)
 from .parsers import MAX_FILE_BYTES, ParseError
 from .providers import (
     Capabilities,
@@ -39,7 +46,7 @@ class TextSource(StrictModel):
 class ProviderConfig(StrictModel):
     id: UUID | None = None
     name: str = Field(min_length=1, max_length=80)
-    kind: Literal["openai", "anthropic", "compatible"]
+    kind: Literal["openai", "anthropic", "compatible", "codex", "claude_code"]
     model: str = Field(min_length=1, max_length=160)
     base_url: str = Field(default="", max_length=500)
     api_key: str | None = Field(default=None, max_length=1000)
@@ -108,6 +115,10 @@ def register_study_routes(
     interactions = InteractionService(canvas)
 
     def factory(config):
+        if config["kind"] in KINDS:
+            return (CodexProvider if config["kind"] == "codex" else ClaudeCodeProvider)(
+                config
+            )
         # Do not touch Keychain on ordinary page loads or for keyless local servers.
         key = secrets.get(config["id"]) if config.get("key_saved") else None
         if config.get("key_saved") and not key:
@@ -256,14 +267,70 @@ def register_study_routes(
         result = dict(config)
         result["has_key"] = bool(result.pop("key_saved", False))
         result["credential_store"] = "system" if result["has_key"] else "not_required"
+        if config["kind"] in KINDS:
+            result["credential_store"] = "native_cli"
         return result
 
     @router.get("/providers")
     def providers():
         return {"providers": [public_provider(c) for c in store.providers()]}
 
+    @router.get("/local-clients")
+    def local_clients():
+        from .local_clients import client_options
+
+        return client_options(canvas.profile_name())
+
+    @router.post("/providers/local/{kind}", status_code=201)
+    async def connect_local(kind: Literal["codex", "claude_code"]):
+        # Inspect login only on an explicit connect action; no inference or copied tokens.
+        status = await inspect_login(kind)
+        existing = next((p for p in store.providers() if p["kind"] == kind), None)
+        if existing:
+            return public_provider(existing)
+        return public_provider(
+            store.save_provider(
+                {
+                    "id": str(uuid4()),
+                    "name": KINDS[kind],
+                    "kind": kind,
+                    "model": status["model"],
+                    "base_url": "",
+                    "key_saved": False,
+                    "capabilities": asdict(
+                        Capabilities(streaming=True, structured_output=True)
+                    ),
+                }
+            )
+        )
+
+    @router.post("/local-clients/{kind}/login")
+    async def login_local(kind: Literal["codex", "claude_code"]):
+        from .local_clients import open_login
+
+        return await open_login(kind)
+
+    @router.post("/local-clients/{kind}/open")
+    async def open_client(kind: Literal["codex", "claude"]):
+        from .local_clients import open_desktop
+
+        return await open_desktop(kind)
+
+    @router.post("/local-clients/{kind}/connect")
+    async def connect_client(kind: Literal["codex", "claude"]):
+        from .local_clients import connect_desktop
+
+        return await connect_desktop(kind, canvas.profile_name())
+
     @router.post("/providers", status_code=201)
     def save_provider(payload: ProviderConfig):
+        if payload.kind in KINDS:
+            find_cli(payload.kind)
+            if payload.api_key or payload.remove_key or payload.native_tools:
+                raise HTTPException(
+                    422,
+                    "CLI providers use their own login and do not support live tools here.",
+                )
         if payload.api_key and payload.remove_key:
             raise HTTPException(422, "Choose either save key or remove key.")
         identifier = str(payload.id or uuid4())
@@ -294,9 +361,13 @@ def register_study_routes(
             or bool(existing and existing.get("key_saved") and not payload.remove_key),
             "capabilities": asdict(
                 Capabilities(
-                    streaming=payload.streaming,
-                    native_tools=payload.native_tools,
-                    structured_output=payload.structured_output,
+                    streaming=True if payload.kind in KINDS else payload.streaming,
+                    native_tools=False
+                    if payload.kind in KINDS
+                    else payload.native_tools,
+                    structured_output=True
+                    if payload.kind in KINDS
+                    else payload.structured_output,
                 )
             ),
         }

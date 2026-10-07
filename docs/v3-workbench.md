@@ -11,6 +11,7 @@ The feature branch extends `canvas web` into a study workspace while retaining t
 | Canvas source tree, selection and local sync | `webapp/services/sources.py`, `web/src/features/Sources.tsx` | Explicit inventory/sync/refresh, canonical module items, independent failures and checksum reuse |
 | Local extraction and indexing | `webapp/parsers.py`, `webapp/store.py` | PDF, DOCX, PPTX, HTML, Markdown, text/caption fixtures, scoped FTS and Unicode search |
 | Configurable providers and streaming | `webapp/providers.py`, `webapp/routes.py`, `web/src/features/Providers.tsx` | OpenAI Responses, Anthropic Messages and compatible Chat Completions stream/nonstream/tool/schema contracts |
+| Native CLI providers and desktop setup | `webapp/native_providers.py`, `webapp/local_clients.py`, `web/src/features/LocalClients.tsx` | Codex/Claude Code login, ephemeral text-only inference, cancellation, native schema validation, safe desktop MCP configuration merge |
 | Citation-aware chat and persisted history | `webapp/services/study.py`, `web/src/features/Chat.tsx` | Selected-source context, scope-aware history, SSE, partial failures, valid IDs and citation inspection |
 | Quiz, flashcards and study guide | `webapp/services/study.py`, `web/src/features/Studio.tsx` | Schemas, provenance/citations, quiz practice, card reveal and Markdown/JSON exports |
 | Local notes and saved artifacts | `webapp/store.py`, `web/src/features/Studio.tsx` | Note CRUD and saving answers/materials with provenance |
@@ -90,9 +91,9 @@ Automated suites use synthetic course documents, mocked browser access and provi
 
 Validation on 2026-10-07:
 
-- Python: **488 tests passed**, including existing CLI/MCP regression tests and new backend/provider contracts.
-- Frontend: **18 tests passed**; TypeScript checking and production build passed.
-- Browser: **5 isolated Playwright flows passed**; desktop/mobile screenshots were inspected, and mobile action spacing corrected.
+- Python: **512 tests passed**, including existing CLI/MCP regression tests and new backend/provider contracts.
+- Frontend: **22 tests passed**; TypeScript checking and production build passed.
+- Browser: **6 isolated Playwright flows passed**; desktop/mobile screenshots were inspected, and mobile action spacing corrected.
 - Ruff passed for the changed Python implementation and web tests. The repository's existing v2 style findings were not rewritten as part of v3.
 - `npm audit --audit-level=low` reported **0 vulnerabilities**, including development dependencies.
 - Wheel and source distribution contain the compiled UI, self-hosted fonts, dependency notices and versioned prompts; neither contains browser data, databases, environments or live test captures.
@@ -108,3 +109,12 @@ Live cloud-provider tests require a configured key/model. HKUST read/sync requir
 ## API references
 
 The adapters follow [OpenAI streaming](https://developers.openai.com/api/docs/guides/streaming-responses), [OpenAI function calling](https://developers.openai.com/api/docs/guides/function-calling), [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs), [Anthropic streaming](https://platform.claude.com/docs/en/build-with-claude/streaming), [Anthropic structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) and [keyring system backends](https://keyring.readthedocs.io/en/latest/).
+
+
+### Native-client setup verification
+
+The follow-up provider setup work adds **Use existing login**, official CLI sign-in and native desktop handoffs. Codex uses app-server over stdio; Claude Code uses its documented noninteractive stream. Native adapter contracts use synthetic subprocesses and verify disabled tools/MCP, private inference input, final-answer filtering, streaming without duplicates, bounded output, cancellation/timeout cleanup and schema validation. Desktop configuration tests preserve other MCP entries and refuse malformed configuration. Login/connection routes require the normal local session and CSRF protection; no CLI tokens enter provider configuration or SQLite.
+
+Real local Codex login, streamed text and JSON Schema generation passed with short generic prompts and no course data. Claude Code was detected but was not signed in, so real Claude inference is **not verified**; its setup presents the official login action. Standard Codex/Claude desktop apps were not installed on the test machine, so their native launch paths were tested with synthetic metadata and safe config fixtures, not live desktop accounts. One-click desktop discovery/configuration is macOS-specific; manual setup text and official guides remain available elsewhere.
+
+The full regression suite also exposed a concurrent first-launch SQLite journal-mode lock race. Initialization now retries only SQLite busy/locked errors for a bounded ten seconds; concurrent migration coverage runs sixteen initializers. No Canvas write was performed by this provider follow-up.

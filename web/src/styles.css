@@ -2018,3 +2018,49 @@ textarea::placeholder {
     scroll-behavior: auto !important;
   }
 }
+
+.local-clients {
+  margin-block: 24px;
+}
+.local-clients > p {
+  max-width: 70ch;
+  margin-block: 10px 16px;
+  font-size: 0.78rem;
+}
+.local-client-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  padding-block: 18px;
+  border-bottom: 1px solid var(--line);
+}
+.local-client-row small {
+  display: block;
+  color: var(--muted);
+  margin-top: 6px;
+  font-size: 0.7rem;
+}
+.local-clients > .text-button {
+  margin-top: 14px;
+}
+.client-setup {
+  margin-top: 16px;
+}
+.client-setup summary {
+  cursor: pointer;
+}
+.client-setup pre {
+  overflow: auto;
+  max-height: 300px;
+  padding: 16px;
+  margin-top: 12px;
+  background: var(--surface);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 0.7rem;
+}
+.local-client-row .provider-actions {
+  flex-wrap: wrap;
+}
