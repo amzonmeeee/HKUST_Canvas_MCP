@@ -402,9 +402,9 @@ test("desktop course navigation, local rename and explicit deletion", async ({
   await expect(
     page.getByRole("heading", { name: "Reading project", level: 1 }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Delete local workspace" }).click();
+  await page.getByRole("button", { name: "Delete workspace…" }).click();
   await page.getByRole("button", { name: "Keep workspace" }).click();
-  await page.getByRole("button", { name: "Delete local workspace" }).click();
+  await page.getByRole("button", { name: "Delete workspace…" }).click();
   await page.getByRole("button", { name: /^Delete workspace$/ }).click();
   await expect(
     page.getByRole("heading", { name: "Your study starts here." }),
@@ -555,8 +555,10 @@ test("Canvas writes require exact preview and a separate human confirm click", a
     .filter({ hasText: "Live Canvas actions" })
     .click();
   await page
-    .getByRole("combobox", { name: "Action", exact: true })
-    .selectOption("reply_to_conversation");
+    .getByRole("button", { name: "Reply to Inbox conversation", exact: true })
+    .click();
+  expect(writes).toBe(0);
+  await expect(page.getByRole("combobox", { name: "Action" })).toHaveCount(0);
   await page.getByLabel("conversation id *", { exact: true }).fill("3");
   await page
     .getByLabel("body *", { exact: true })
@@ -608,4 +610,123 @@ test("existing CLI login and desktop connection are usable at both screen sizes"
       () => document.documentElement.scrollWidth <= window.innerWidth,
     ),
   ).toBe(true);
+});
+
+test("workspace fills wide screens and remembers pointer and keyboard panel sizes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1440 });
+  await page.goto("/#session=synthetic-launch");
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  const sourceDivider = page.getByRole("separator", {
+    name: "Resize Sources and Conversation",
+  });
+  const studioDivider = page.getByRole("separator", {
+    name: "Resize Conversation and Study Studio",
+  });
+  await expect(sourceDivider).toBeVisible();
+  await expect(studioDivider).toBeVisible();
+  const bounds = await page.locator(".workbench").boundingBox();
+  const main = await page.locator(".main-content").boundingBox();
+  expect(bounds!.width).toBeGreaterThan(2200);
+  expect(
+    Math.abs(
+      bounds!.x - main!.x - (main!.x + main!.width - bounds!.x - bounds!.width),
+    ),
+  ).toBeLessThan(2);
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-layout-wide.png",
+    fullPage: true,
+  });
+  const sourceBefore = Number(
+    await sourceDivider.getAttribute("aria-valuenow"),
+  );
+  await sourceDivider.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(sourceDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(sourceBefore + 24),
+  );
+  const studioBefore = Number(
+    await studioDivider.getAttribute("aria-valuenow"),
+  );
+  await studioDivider.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(studioDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(studioBefore + 24),
+  );
+  const handle = (await sourceDivider.boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + 80);
+  await page.mouse.down();
+  await page.mouse.move(handle.x + handle.width / 2 + 96, handle.y + 80, {
+    steps: 6,
+  });
+  await page.mouse.up();
+  await expect(sourceDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(sourceBefore + 120),
+  );
+  await page.reload();
+  await expect(sourceDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(sourceBefore + 120),
+  );
+  await expect(studioDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(studioBefore + 24),
+  );
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await expect(sourceDivider).toBeHidden();
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await expect(sourceDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(sourceBefore + 120),
+  );
+  await page.getByRole("button", { name: "Study Studio", exact: true }).click();
+  await expect(studioDivider).toBeHidden();
+  await page.getByRole("button", { name: "Study Studio", exact: true }).click();
+  await expect(studioDivider).toBeVisible();
+  await studioDivider.press("Home");
+  await expect(studioDivider).toHaveAttribute("aria-valuenow", "280");
+  await sourceDivider.press("End");
+  expect(
+    (await page.locator(".chat-panel").boundingBox())!.width,
+  ).toBeGreaterThanOrEqual(359);
+  await sourceDivider.dblclick();
+  await expect(sourceDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(sourceBefore),
+  );
+  await expect(studioDivider).toHaveAttribute(
+    "aria-valuenow",
+    String(studioBefore),
+  );
+  await page.getByRole("button", { name: "Flashcards", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Flashcards", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  const difficulty = page.getByRole("slider", { name: "Difficulty" });
+  await difficulty.press("End");
+  await expect(difficulty).toHaveAttribute("aria-valuetext", "Advanced");
+  await difficulty.press("Home");
+  await expect(difficulty).toHaveAttribute("aria-valuetext", "Introductory");
+  for (const width of [1440, 1200, 1024, 768, 390]) {
+    await page.setViewportSize({ width, height: 900 });
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth <= window.innerWidth,
+        ),
+      )
+      .toBe(true);
+    if (width < 1200) await expect(page.getByRole("separator")).toHaveCount(0);
+    else await expect(sourceDivider).toBeVisible();
+  }
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-layout-mobile.png",
+    fullPage: true,
+  });
 });

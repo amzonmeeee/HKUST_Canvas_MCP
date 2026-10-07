@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
-import { Plus, Bookmark, Download, Trash2, ArrowLeft } from "lucide-react";
+import {
+  Plus,
+  Bookmark,
+  Download,
+  Trash2,
+  ArrowLeft,
+  CircleHelp,
+  Layers,
+  BookOpen,
+} from "lucide-react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 import { StudyMarkdown, CitationList } from "./StudyContent";
 import type { Artifact, Citation, Note, Provider } from "../types";
+
+const difficulties = ["introductory", "intermediate", "advanced"] as const;
+const difficultyLabels = ["Introductory", "Intermediate", "Advanced"];
 
 export function StudioPanel({
   workspaceId,
@@ -34,7 +46,8 @@ export function StudioPanel({
     [kind, setKind] = useState<Artifact["kind"]>("quiz"),
     [topic, setTopic] = useState(""),
     [count, setCount] = useState(5),
-    [difficulty, setDifficulty] = useState("intermediate"),
+    [difficulty, setDifficulty] =
+      useState<(typeof difficulties)[number]>("intermediate"),
     [busy, setBusy] = useState(false),
     [loading, setLoading] = useState(true),
     [error, setError] = useState(""),
@@ -216,9 +229,9 @@ export function StudioPanel({
       {active ? (
         <>
           <header className="artifact-header">
-            <p className="eyebrow">{active.kind.replaceAll("_", " ")}</p>
             <h3>{active.title}</h3>
             <p className="muted">
+              {active.kind.replaceAll("_", " ")} ·{" "}
               {active.provenance.provider_name} · {active.provenance.model}
               <br />
               {new Date(active.provenance.created_at).toLocaleString()} ·{" "}
@@ -423,7 +436,7 @@ export function StudioPanel({
             />
           </label>
           <button className="button primary small" disabled={busy}>
-            Save local note
+            Save note
           </button>
           <button
             type="button"
@@ -461,17 +474,33 @@ export function StudioPanel({
             onSubmit={(e) => void generate(e)}
           >
             <h3>Practice from selected sources.</h3>
-            <label>
-              Material
-              <select
-                value={kind}
-                onChange={(e) => setKind(e.target.value as Artifact["kind"])}
-              >
-                <option value="quiz">Multiple-choice quiz</option>
-                <option value="flashcards">Flashcards</option>
-                <option value="study_guide">Study guide</option>
-              </select>
-            </label>
+            <fieldset className="material-picker">
+              <legend>Material</legend>
+              <div className="material-buttons">
+                {(
+                  [
+                    { value: "quiz", label: "Quiz", icon: CircleHelp },
+                    { value: "flashcards", label: "Flashcards", icon: Layers },
+                    {
+                      value: "study_guide",
+                      label: "Study guide",
+                      icon: BookOpen,
+                    },
+                  ] as const
+                ).map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    aria-pressed={kind === option.value}
+                    disabled={busy}
+                    onClick={() => setKind(option.value)}
+                  >
+                    <option.icon size={19} aria-hidden="true" />
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </fieldset>
             <label>
               Topic or focus
               <input
@@ -481,7 +510,7 @@ export function StudioPanel({
                 placeholder="Leave blank for selected material"
               />
             </label>
-            <div className="form-row">
+            <div className="item-count-row">
               <label>
                 {kind === "quiz"
                   ? "Questions"
@@ -497,25 +526,53 @@ export function StudioPanel({
                   onChange={(e) => setCount(Number(e.target.value))}
                 />
               </label>
-              <label>
-                Difficulty
-                <select
-                  value={difficulty}
-                  onChange={(e) => setDifficulty(e.target.value)}
-                >
-                  <option value="introductory">Introductory</option>
-                  <option value="intermediate">Intermediate</option>
-                  <option value="advanced">Advanced</option>
-                </select>
-              </label>
             </div>
+            <label className="difficulty-control">
+              <span>
+                Difficulty{" "}
+                <strong>
+                  {
+                    difficultyLabels[
+                      difficulties.indexOf(
+                        difficulty as (typeof difficulties)[number],
+                      )
+                    ]
+                  }
+                </strong>
+              </span>
+              <input
+                type="range"
+                aria-label="Difficulty"
+                min={0}
+                max={2}
+                step={1}
+                value={difficulties.indexOf(
+                  difficulty as (typeof difficulties)[number],
+                )}
+                aria-valuetext={
+                  difficultyLabels[
+                    difficulties.indexOf(
+                      difficulty as (typeof difficulties)[number],
+                    )
+                  ]
+                }
+                disabled={busy}
+                onChange={(event) =>
+                  setDifficulty(difficulties[Number(event.target.value)])
+                }
+              />
+              <span className="difficulty-scale" aria-hidden="true">
+                <span>Introductory</span>
+                <span>Intermediate</span>
+                <span>Advanced</span>
+              </span>
+            </label>
             <p className="muted">
               {sourceIds.length} selected sources ·{" "}
               {provider
                 ? `${provider.name} (${provider.model})`
                 : "Choose a provider in the conversation panel"}
-              . Excerpts will be sent when you generate. Invalid JSON may
-              trigger one repair request.
+              . Uses excerpts from your selected sources.
             </p>
             <button
               className="button primary"
@@ -557,7 +614,7 @@ export function StudioPanel({
         <>
           <button className="button secondary small" onClick={() => editNote()}>
             <Plus size={15} />
-            New local note
+            New note
           </button>
           <div className="studio-saved">
             {notes.map((n) => (
@@ -579,8 +636,8 @@ export function StudioPanel({
             ))}
             {!notes.length && (
               <p className="muted">
-                Write a note here or save an assistant answer. Notes stay local
-                and are never uploaded to Canvas automatically.
+                Write a note here or save an assistant answer. Notes are never
+                uploaded to Canvas automatically.
               </p>
             )}
           </div>
@@ -597,7 +654,7 @@ export function StudioPanel({
             disabled={busy}
             onClick={() => void remove()}
           >
-            Delete locally
+            Delete
           </button>
           <button className="text-button" onClick={() => setRemoving(null)}>
             Keep it

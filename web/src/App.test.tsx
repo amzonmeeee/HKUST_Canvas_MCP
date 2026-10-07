@@ -232,19 +232,15 @@ describe("Local workbench foundation", () => {
     expect(
       await screen.findByRole("heading", { name: "Renamed course", level: 1 }),
     ).toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Delete local workspace" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete workspace…" }));
     expect(requests.some((request) => request.method === "DELETE")).toBe(false);
     await user.click(screen.getByRole("button", { name: "Keep workspace" }));
     expect(
       screen.queryByRole("region", {
-        name: "Confirm local workspace deletion",
+        name: "Confirm workspace deletion",
       }),
     ).not.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Delete local workspace" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Delete workspace…" }));
     await user.click(
       screen.getByRole("button", { name: /^Delete workspace$/ }),
     );
@@ -298,7 +294,7 @@ describe("Local workbench foundation", () => {
     );
     render(<App />);
     expect(
-      await screen.findByText(/This local session has ended/),
+      await screen.findByText(/This session has ended/),
     ).toBeInTheDocument();
     expect(screen.queryByText("Canvas courses")).not.toBeInTheDocument();
   });

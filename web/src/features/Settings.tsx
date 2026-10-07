@@ -109,8 +109,9 @@ export function SettingsPage() {
           <section className="settings-section">
             <h2>Local storage & privacy</h2>
             <p>
-              Workspace metadata lives in a SQLite database in your operating
-              system's application-data directory, outside this repository.
+              Workspaces, indexed sources, conversations, study materials and
+              notes are saved on this computer, in your operating system's
+              application-data directory outside this repository.
             </p>
             <dl className="settings-facts">
               <div>

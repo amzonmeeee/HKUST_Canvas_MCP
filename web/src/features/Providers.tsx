@@ -184,7 +184,7 @@ export function ProviderSettings() {
               <div className="inline-confirm">
                 <p>
                   Remove this provider configuration? Saved conversations and
-                  study materials stay local.
+                  study materials are kept.
                 </p>
                 <button
                   className="button danger small"

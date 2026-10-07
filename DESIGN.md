@@ -8,13 +8,13 @@ Grounded candidates considered: library catalog, laboratory notebook, academic p
 
 ## Visual system
 
-Warm off-white work surface, deep forest navigation, ink text and a restrained orange action accent. Public Sans is self-hosted from the frontend dependency. Lucide line icons use a consistent stroke. No external fonts, gradients, illustration, decorative metrics or fake course totals.
+Cool paper (#e7ecef), lapis blue (#005a9c) navigation and actions, near-black ink (#11191f), and vermilion (#c93425) keyboard focus. Secondary paper (#d8e0e5) separates controls from the working surface. Public Sans is self-hosted from the frontend dependency. Lucide line icons use a consistent stroke. No external fonts, gradients, illustration, decorative metrics or fake course totals.
 
-Desktop uses a 224px navigation rail and a flexible content field. Course entries share aligned rows and substantial titles. Workspace uses source, conversation and Studio panels with compact controls and readable excerpts. Mobile collapses navigation to a top bar and stacks panels; labels remain readable and actions stay reachable. Source inspection uses a keyboard-accessible dialog; citations open local text and a canonical Canvas link.
+Desktop uses a 224px navigation rail and a content field that fills the available width with balanced gutters. Course entries share aligned rows and substantial titles. Workspace uses Sources, Conversation and Study Studio panels. Two draggable dividers redistribute their widths while preserving usable minimums; arrow keys adjust them, double-click restores defaults, and the browser remembers proportions. Tablet puts Studio below the other panels; mobile collapses navigation to a top bar and stacks all panels. Dividers are hidden in stacked layouts. Source inspection uses a keyboard-accessible dialog; citations open indexed text and a canonical Canvas link.
 
 ## Interaction
 
-Course row focus and hover reveal a quiet route-arrow translation. Loading preserves the shell; errors have explicit retry actions. Create and rename forms are inline. Local deletion requires a deliberate second step and explains that Canvas is unaffected. Reduced motion removes transitions. All controls have visible focus, names and touch targets.
+Course row focus and hover reveal a quiet route-arrow translation. Loading preserves the shell; errors have explicit retry actions. Create and rename forms are inline. Workspace deletion requires a deliberate second step and explains that Canvas is unaffected. Storage and privacy explanations are concentrated in Settings. Materials use three directly selectable buttons; difficulty is a three-step slider with a visible label. Canvas actions use grouped buttons inside their disclosure; selecting one only opens its form. Reduced motion removes transitions. All controls have visible focus, names and touch targets.
 
 ## Scope truth
 

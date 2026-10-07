@@ -18,6 +18,8 @@ import { SourcesPanel } from "./Sources";
 import { ChatPanel } from "./Chat";
 import { StudioPanel } from "./Studio";
 import { SourceViewer } from "./StudyContent";
+import { PanelResizeHandle } from "./PanelResizeHandle";
+import { usePanelLayout } from "./usePanelLayout";
 
 export function WorkspacePage({
   workspaceId,
@@ -35,6 +37,7 @@ export function WorkspacePage({
   const [deleting, setDeleting] = useState(false);
   const [sourcesOpen, setSourcesOpen] = useState(true);
   const [studioOpen, setStudioOpen] = useState(true);
+  const layout = usePanelLayout(sourcesOpen, studioOpen);
   const [selected, setSelected] = useState<string[]>([]);
   const [providerId, setProviderId] = useState("");
   const [viewer, setViewer] = useState<{
@@ -104,7 +107,6 @@ export function WorkspacePage({
                 {[workspace.course_code, workspace.term_name]
                   .filter(Boolean)
                   .join(" · ") || "Custom workspace"}
-                <span className="local-inline">Saved on this computer</span>
               </p>
             </div>
             {workspace.canvas_course_id && (
@@ -137,7 +139,7 @@ export function WorkspacePage({
               }}
             >
               <Trash2 size={15} aria-hidden="true" />
-              Delete local workspace
+              Delete workspace…
             </button>
           </div>
           {editing && (
@@ -189,10 +191,10 @@ export function WorkspacePage({
             <div
               className="delete-confirm"
               role="region"
-              aria-label="Confirm local workspace deletion"
+              aria-label="Confirm workspace deletion"
             >
               <p>
-                Delete “{workspace.title}” from this computer? Your Canvas
+                Delete “{workspace.title}” and its saved content? Your Canvas
                 course and its content will remain available.
               </p>
               <div className="form-actions">
@@ -214,9 +216,14 @@ export function WorkspacePage({
             </div>
           )}
           <div
+            ref={layout.container}
+            style={layout.style}
             className={`workbench${sourcesOpen ? "" : " sources-closed"}${studioOpen ? "" : " studio-closed"}`}
           >
-            <section className="workbench-panel sources-panel">
+            <section
+              id={`sources-${workspaceId}`}
+              className="workbench-panel sources-panel"
+            >
               <button
                 className="panel-title"
                 aria-expanded={sourcesOpen}
@@ -242,6 +249,16 @@ export function WorkspacePage({
                 />
               )}
             </section>
+            <PanelResizeHandle
+              side="sources"
+              size={layout.sizes.sources}
+              minimum={layout.minimum.sources}
+              maximum={layout.maximum.sources}
+              disabled={!sourcesOpen}
+              controls={`sources-${workspaceId}`}
+              onResize={(size) => layout.resize("sources", size)}
+              onReset={layout.reset}
+            />
             <section className="workbench-panel chat-panel">
               <h2 className="panel-title">
                 <span>
@@ -260,7 +277,20 @@ export function WorkspacePage({
                 navigate={navigate}
               />
             </section>
-            <section className="workbench-panel studio-panel">
+            <PanelResizeHandle
+              side="studio"
+              size={layout.sizes.studio}
+              minimum={layout.minimum.studio}
+              maximum={layout.maximum.studio}
+              disabled={!studioOpen}
+              controls={`studio-${workspaceId}`}
+              onResize={(size) => layout.resize("studio", size)}
+              onReset={layout.reset}
+            />
+            <section
+              id={`studio-${workspaceId}`}
+              className="workbench-panel studio-panel"
+            >
               <button
                 className="panel-title"
                 aria-expanded={studioOpen}

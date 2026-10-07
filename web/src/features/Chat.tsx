@@ -201,7 +201,7 @@ export function ChatPanel({
       );
     } catch (p) {
       if ((p as Error).name !== "AbortError") setError((p as Error).message);
-      else setWarning("Response stopped. Partial text is saved locally.");
+      else setWarning("Response stopped. Partial text is saved.");
     } finally {
       setBusy(false);
       setActivity("");
@@ -307,7 +307,7 @@ export function ChatPanel({
       )}
       {deleting && (
         <div className="inline-confirm">
-          <p>Delete this local conversation?</p>
+          <p>Delete this conversation?</p>
           <button className="button danger small" onClick={() => void remove()}>
             Delete conversation
           </button>

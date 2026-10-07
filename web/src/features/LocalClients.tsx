@@ -111,7 +111,7 @@ export function LocalClients({
       )}
       {error && <ErrorNotice message={error} retry={() => void load()} />}
       {notice && <p role="status">{notice}</p>}
-      {!clients && !error && <p role="status">Checking local clients…</p>}
+      {!clients && !error && <p role="status">Checking available clients…</p>}
       {clients &&
         (desktop ? clients.desktop : clients.cli).map((client) => {
           const kind = client.kind;

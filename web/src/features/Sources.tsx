@@ -350,7 +350,7 @@ export function SourcesPanel({
                           </button>
                           <button onClick={() => setRemoving(s.id)}>
                             <Trash2 size={13} />
-                            Remove locally
+                            Remove source
                           </button>
                         </div>
                       </details>
@@ -442,7 +442,7 @@ export function SourcesPanel({
       )}
       <p className="source-footnote">
         Only ready, selected sources are available to chat and Studio. Files are
-        parsed locally; video and external tools stay as references.
+        indexed for search; video and external tools stay as references.
       </p>
     </div>
   );

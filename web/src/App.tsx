@@ -28,7 +28,7 @@ export function App() {
       .catch(() => {
         if (active)
           setError(
-            "This local session has ended or needs its launch link. Open the URL printed by canvas web.",
+            "This session has ended or needs its launch link. Open the URL printed by canvas web.",
           );
       });
     const pop = () => setPath(window.location.pathname);
@@ -64,10 +64,7 @@ export function App() {
             <strong>Workbench</strong>
           </span>
         </button>
-        <span className="local-label">
-          <span className="status-dot" />
-          Local on this computer
-        </span>
+
         <nav>
           <button
             aria-label="Dashboard"
@@ -117,14 +114,18 @@ export function App() {
           )}
         </button>
       </aside>
-      <main id="main" className="main-content" tabIndex={-1}>
+      <main
+        id="main"
+        className={`main-content${workspaceId ? " workspace-page" : ""}`}
+        tabIndex={-1}
+      >
         {!ready ? (
           <div className="session-screen">
             <h1>Canvas Workbench</h1>
             {error ? (
               <ErrorNotice message={error} />
             ) : (
-              <Loading>Connecting to your local workbench…</Loading>
+              <Loading>Connecting to your workbench…</Loading>
             )}
           </div>
         ) : dashboard ? (

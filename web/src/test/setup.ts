@@ -8,3 +8,9 @@ afterEach(() => {
 });
 window.scrollTo = vi.fn();
 HTMLElement.prototype.scrollIntoView = vi.fn();
+// jsdom has no layout engine; browser tests exercise actual measurements.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

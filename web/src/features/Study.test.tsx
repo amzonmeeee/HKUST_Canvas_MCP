@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { WritePreview } from "./Actions";
@@ -34,6 +34,12 @@ beforeEach(() => {
         method: options?.method || "GET",
         body: options?.body ? JSON.parse(String(options.body)) : undefined,
       });
+      if (path.endsWith("/generate"))
+        return {
+          status: 422,
+          ok: false,
+          json: async () => ({ detail: "Synthetic generation stopped" }),
+        } as Response;
       const response = path.endsWith("/artifacts")
         ? { artifacts: [] }
         : path.endsWith("/notes")
@@ -47,6 +53,47 @@ beforeEach(() => {
 });
 
 describe("Study safety and controls", () => {
+  it.each([
+    ["Quiz", "quiz", 0, "introductory", "Introductory"],
+    ["Flashcards", "flashcards", 1, "intermediate", "Intermediate"],
+    ["Study guide", "study_guide", 2, "advanced", "Advanced"],
+  ])(
+    "submits %s and the selected slider difficulty only on generation",
+    async (label, kind, step, difficulty, spokenLabel) => {
+      const user = userEvent.setup();
+      render(
+        <StudioPanel
+          workspaceId="workspace"
+          sourceIds={[citation.source_id]}
+          providerId="provider"
+          notesVersion={0}
+          openCitation={() => {}}
+        />,
+      );
+      await user.click(
+        await screen.findByRole("button", { name: label }),
+      );
+      const slider = screen.getByRole("slider", { name: "Difficulty" });
+      fireEvent.change(slider, { target: { value: String(step) } });
+      expect(slider).toHaveAttribute("aria-valuetext", spokenLabel);
+      expect(
+        screen.getByRole("button", { name: label }),
+      ).toHaveAttribute("aria-pressed", "true");
+      expect(requests.every((r) => r.method === "GET")).toBe(true);
+      await user.click(
+        screen.getByRole("button", { name: "Generate material" }),
+      );
+      await screen.findByText("Synthetic generation stopped");
+      expect(requests.find((r) => r.path.endsWith("/generate"))?.body).toEqual({
+        provider_id: "provider",
+        source_ids: [citation.source_id],
+        kind,
+        topic: "",
+        count: 5,
+        difficulty,
+      });
+    },
+  );
   it("requires a deliberate confirm click and sends only the server preview ID", async () => {
     const user = userEvent.setup();
     render(

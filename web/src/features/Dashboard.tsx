@@ -47,9 +47,7 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
     }
     if (local.status === "fulfilled") setWorkspaces(local.value.workspaces);
     else
-      setLocalError(
-        local.reason.message || "Local workspaces could not be loaded.",
-      );
+      setLocalError(local.reason.message || "Workspaces could not be loaded.");
     if (connection.status === "fulfilled") setStatus(connection.value);
     else setStatus(null);
     setLoading(false);
@@ -228,7 +226,9 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
             <h2 id="workspaces-heading">
               My workspaces <span className="count">{workspaces.length}</span>
             </h2>
-            <p>Saved locally. Available even when Canvas is offline.</p>
+            <p>
+              Continue with your sources, conversations and study materials.
+            </p>
           </div>
           <button
             className="button"
@@ -285,7 +285,7 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         {localError ? (
           <ErrorNotice message={localError} retry={() => void load()} />
         ) : loading && !workspaces.length ? (
-          <Loading>Loading local workspaces…</Loading>
+          <Loading>Loading workspaces…</Loading>
         ) : !workspaces.length ? (
           <EmptyState title="A place for each course—and everything else.">
             Opening a Canvas course saves a workspace here. Create a custom
@@ -316,8 +316,7 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         )}
       </section>
       <footer className="page-footer">
-        Sources, conversations and study materials are saved locally. Select a
-        provider only when you want to use AI.
+        Choose ready sources to start a conversation or create study materials.
       </footer>
     </>
   );

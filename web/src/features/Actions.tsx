@@ -21,6 +21,14 @@ const labels: Record<string, string> = {
   reply_to_conversation: "Reply to Inbox conversation",
   mark_module_item_done: "Mark module item done / undo",
 };
+const writeActions = new Set([
+  "post_discussion_entry",
+  "reply_to_discussion_entry",
+  "add_submission_comment",
+  "send_conversation",
+  "reply_to_conversation",
+  "mark_module_item_done",
+]);
 export function actionLabel(name: string) {
   return labels[name] || name.replaceAll("_", " ");
 }
@@ -104,8 +112,10 @@ export function WritePreview({
   }
   return (
     <article className="write-preview">
-      <p className="eyebrow">Human approval required</p>
       <h3>{actionLabel(preview.tool)}</h3>
+      <p>
+        <strong>Human approval required</strong>
+      </p>
       <p className="muted">
         Review the exact account, target, recipients and content before
         confirming. This will change Canvas.
@@ -180,14 +190,7 @@ export function LiveActions({
       .catch((p) => setError((p as Error).message));
   }, [workspace.id]);
   const tool = tools.find((t) => t.name === name),
-    write = [
-      "post_discussion_entry",
-      "reply_to_discussion_entry",
-      "add_submission_comment",
-      "send_conversation",
-      "reply_to_conversation",
-      "mark_module_item_done",
-    ].includes(name);
+    write = writeActions.has(name);
   function type(p: Property) {
     return Array.isArray(p.type) ? p.type.find((t) => t !== "null") : p.type;
   }
@@ -240,29 +243,40 @@ export function LiveActions({
       </p>
       {error && <ErrorNotice message={error} />}
       <form className="compact-form" onSubmit={(e) => void execute(e)}>
-        <label>
-          Action
-          <select
-            value={name}
-            onChange={(e) => {
-              setName(e.target.value);
-              setValues(
-                e.target.value === "mark_module_item_done"
-                  ? { done: true }
-                  : {},
-              );
-              setResult(null);
-              setError("");
-            }}
-          >
-            <option value="">Choose a Canvas action</option>
-            {tools.map((t) => (
-              <option key={t.name} value={t.name}>
-                {actionLabel(t.name)}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="action-picker">
+          {[
+            { write: false, label: "Check Canvas" },
+            { write: true, label: "Prepare a write" },
+          ].map((group) => (
+            <fieldset key={group.label}>
+              <legend>{group.label}</legend>
+              <div className="action-buttons">
+                {tools
+                  .filter((item) => writeActions.has(item.name) === group.write)
+                  .map((item) => (
+                    <button
+                      key={item.name}
+                      type="button"
+                      aria-pressed={name === item.name}
+                      disabled={busy}
+                      onClick={() => {
+                        setName(item.name);
+                        setValues(
+                          item.name === "mark_module_item_done"
+                            ? { done: true }
+                            : {},
+                        );
+                        setResult(null);
+                        setError("");
+                      }}
+                    >
+                      {actionLabel(item.name)}
+                    </button>
+                  ))}
+              </div>
+            </fieldset>
+          ))}
+        </div>
         {tool &&
           Object.entries(tool.parameters.properties)
             .filter(
