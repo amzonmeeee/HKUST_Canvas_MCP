@@ -1,5 +1,7 @@
 # Security policy
 
+For a concise description of storage and data sharing, see [PRIVACY.md](PRIVACY.md).
+
 ## Supported versions
 
 Security fixes target `main` and v3.0.0. Older version branches are not maintained separately. The first macOS artifacts are ad-hoc signed and not Apple-notarized.

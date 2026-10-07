@@ -1,14 +1,16 @@
 # HKUST Canvas Workbench
 
-**Your Canvas. Your AI.**
+**Your Canvas. Your AI. Not just one model.**
 
-Study with your Canvas materials beside your conversation. Use Claude Code, Codex, official APIs or a local model, and keep your saved workspace on your computer.
+Bring HKUST Canvas into the AI tools you already use — Claude, Codex,
+OpenAI, Anthropic, local models, OpenAI-compatible endpoints, or any
+compatible MCP client.
+
+> **Unofficial, independent open-source project for HKUST Canvas users.**
 
 ![Selected sources, cited chat and practice quiz. All data is synthetic.](docs/images/workspace.png)
 
 **[Download for macOS · Apple Silicon](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.0.0)** · [Developer install](docs/development.md) · [Security policy](SECURITY.md)
-
-The app includes its backend and browser UI: no Python, Node.js or repository clone needed. This first release is **ad-hoc signed and not notarized**. Read the opening instructions below before installing.
 
 ## What it does
 
@@ -20,32 +22,33 @@ The app includes its backend and browser UI: no Python, Node.js or repository cl
 - Check current Canvas information and preview supported writes before confirming them.
 - Access Canvas through the browser, CLI or an MCP client.
 
-## Safety and privacy
-
-**Your Canvas session stays local.** Cookies and CSRF credentials stay in the Python backend. They are never returned to the browser frontend or sent to AI providers. Sources are extracted and indexed locally.
-
-When you send or generate, a cloud provider receives your prompt, relevant conversation history and retrieved excerpts from selected sources. Explicitly enabled live tools can also supply requested Canvas results. A local model receives the same context on its configured server. Temporary chat does not change a provider's data policy.
-
-API keys use the system credential store with no plaintext fallback; stored keys are not returned to the frontend. Codex and Claude Code use their supported CLI login without copying authentication tokens. Connection tests send a short prompt and may use billing or account quota.
-
-Canvas writes require an exact preview and explicit confirmation. **External MCP clients are read-only by default.** Enabling write tools does not approve an action; existing backend confirmation remains required. Verify important submissions, grades and deadlines in Canvas.
-
-**Unlink Canvas profile** removes the shared workbench/CLI/MCP profile binding, cancels pending web previews and blocks Canvas access until explicit reconnection. It preserves Chrome profiles, cookies, browser login and saved study data. Environment overrides do not bypass unlinking. Existing scheduled submissions cannot authenticate while unlinked; inspect their status before reconnecting. **Disconnect provider** removes only the app's configuration and its own stored key, preserving external accounts and CLI login.
-
-See [SECURITY.md](SECURITY.md) for the threat model and private reporting. Never attach cookies, tokens, keys, private exports or unredacted logs to public issues.
-
 ## Why this exists
 
-Your course material should work with the models and clients you choose.
+HKUST now offers an AI learning platform [connected to Canvas](https://www.hkgai.org/products), powered by
+**HKGAI-V3 — [based on DeepSeek V4](https://www.scmp.com/tech/tech-trends/article/3355861/hong-kong-launches-deepseek-based-ai-model-designed-run-domestic-chips)**. The “sources + chat + study outputs”
+experience will look familiar to anyone who has used NotebookLM.
 
-[HKGAI's official product description](https://www.hkgai.org/products) identifies HKLearn as powered by HKGAI V3, with Canvas import, source-linked answers and study outputs. That is a familiar NotebookLM-like study-workbench pattern. This project keeps the sources + conversation + study materials workflow while adding model choice, local ownership, open-source transparency and MCP interoperability.
+**The difference here is that the model is yours to choose.**
 
-Instead of being limited to the HKGAI V3 model offered through HKLearn, connect the tools you already use. This comparison concerns the published product description, not a claim about its underlying implementation or model ancestry.
+Use the same HKUST Canvas data with Claude, Codex, OpenAI, Anthropic,
+local models, OpenAI-compatible endpoints, or any MCP-capable client —
+with local ownership, open-source transparency, and no dependency on a
+single AI stack.
 
 ## 60-second setup
 
 1. Download the Apple Silicon `.dmg` from the [v3.0.0 release](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.0.0). Open it and drag **HKUST Canvas Workbench.app** to Applications.
-2. Open the app. It opens your default browser and keeps a Dock icon while the service runs.
+2. Open the app.
+
+   Because v3.0.0 is not yet Developer ID signed or notarized, macOS may
+   block the first launch. If it does, go to:
+
+   **System Settings → Privacy & Security → Open Anyway**
+
+   Approve it only if you downloaded the app from this repository's
+   official release page. You do not need to disable Gatekeeper.
+
+   The app opens your default browser and keeps a Dock icon while the service runs.
 3. Choose the Chrome profile you normally use for Canvas. Click **Check connection** and verify the account shown. If needed, open `canvas.ust.hk` in Chrome, sign in normally, then retry. The app does not automate SSO.
 4. Connect an already signed-in Codex/Claude Code CLI, add an API/local provider, or **skip for now**. Review the sharing notice and finish setup.
 5. Open a course, **Find course sources**, select and sync sources, choose a provider, then ask a question.
@@ -78,26 +81,58 @@ These demonstrations use synthetic courses, sources, users and model responses. 
 
 ![Synthetic Inbox reply preview; no real message was sent](docs/images/write-preview.png)
 
-## AI providers and compatibility
+## Safety and privacy
+
+**Your Canvas session stays local.** The app uses your existing signed-in Chrome
+Canvas session. Cookies and Canvas CSRF credentials stay in the Python backend;
+they are not returned to the browser frontend or sent to AI providers. Sources
+are extracted, stored and indexed locally.
+
+When you send or generate, a cloud provider receives your prompt, relevant
+conversation history and retrieved excerpts from selected sources, rather than
+an automatic upload of the full course. Explicitly enabled live tools can also
+supply requested Canvas results. A local model receives the same context on its
+configured server; a server on your computer can keep model processing there.
+Temporary chat does not change a provider's data policy.
+
+API keys use the system credential store with no plaintext fallback; stored
+keys are not returned to the frontend or committed to this repository. Codex
+and Claude Code use their supported CLI login without copying authentication
+tokens. Connection tests send a short prompt and may use billing or account quota.
+
+Canvas writes require an exact preview and explicit confirmation.
+**External MCP clients are read-only by default.** Enabling write tools does not
+approve an action. Verify important submissions, grades and deadlines in Canvas.
+
+You are responsible for ensuring that your use of course materials, connected
+services, and AI providers complies with applicable institutional policies,
+service terms, and any rights or restrictions that apply to those materials.
+
+See the [Privacy summary](PRIVACY.md) for data flows and the
+[Security policy](SECURITY.md) for technical safeguards, unlink/disconnect behavior
+and private reporting. Never attach cookies, tokens, keys, private exports or
+unredacted logs to public issues.
+
+## Supported AI providers
 
 | Component | Validation for this release |
 | --- | --- |
-| Apple Silicon macOS app | Built and smoke-tested on macOS 27.0.1; isolated HOME, native Quit, restart and singleton tests. No fresh VM or downloaded-file Gatekeeper test. |
+| Apple Silicon macOS app | Built and smoke-tested on macOS 27.0.1 and fresh macOS 15 CI; isolated HOME, native Quit, restart and singleton tests. Downloaded-file Gatekeeper approval remains a manual check. |
 | Chrome / multiple profiles | HKUST read/sync smoke during v3 development; synthetic connect, expiry, unlink and reconnect tests. Chrome must already be signed in. |
 | Codex CLI | Real login, short streaming and structured output tested during v3 development; release CI uses synthetic adapters. |
 | Claude Code CLI | Implemented and tested with synthetic adapters; real signed-in inference not verified. |
 | Claude Desktop / Codex app | MCP configuration contracts tested; live desktop accounts not verified. Settings → MCP clients. |
 | OpenAI / Anthropic API | Official streaming/tool/schema and failure contracts tested; paid-account access not verified. API billing is separate from a chat subscription. |
 | Compatible API / Ollama / LM Studio | Compatible gateway smoke-tested over loopback. Configure model and endpoint; particular local model installations are not certified. |
-| Windows / Linux | Python/developer route; no desktop installer or platform support claim yet. |
+| Windows / Linux | Python/package tests and fresh wheel install pass on Ubuntu 24.04 CI; no Linux desktop installer. Windows is a developer route without platform validation. |
 
 Choose the model identifier yourself. Local endpoints must already be running. Scanned PDFs need OCR elsewhere; v3 does not provide OCR, transcription or authenticated LTI/external-site extraction. Sync and parsing limits are in the [implementation reference](docs/v3-workbench.md).
 
-## Claude, Codex and other MCP clients
+## Use it with Claude, Codex and any MCP client
 
 In **Settings → MCP clients**, connect a detected desktop app or copy the setup/configuration. The macOS app supplies an absolute path to its bundled MCP executable, so no separate Python package installation is needed. Keep the app in a stable location before configuring clients.
 
-Adding Canvas MCP makes Canvas tools available to that client. To chat **inside this workbench**, also choose a provider in the workspace; MCP configuration alone does not select a chat provider.
+The local web workbench and MCP are separate interfaces. Claude, Codex and other MCP clients can use Canvas tools independently of the workbench's AI provider. To chat **inside this workbench**, choose a provider in the workspace; MCP configuration alone does not select a chat provider.
 
 For a developer installation:
 
@@ -144,10 +179,25 @@ If the app is already gone, its API credentials are system credential-store entr
 
 For v3.1 or later: read-only MCP access to saved workspaces, indexed sources, search and artifacts, so external agents can use the same materials as the browser. These tools are planned, not included in v3.0. Signing/notarization and broader platform testing are next steps.
 
+## Disclaimer
+
+HKUST Canvas Workbench is an unofficial, independent open-source project
+and is not affiliated with or endorsed by HKUST, Instructure, or any
+supported AI provider. The software is provided as-is, without warranty.
+
+AI-generated content and synchronized Canvas data may be incomplete,
+delayed, or incorrect. Always verify critical submissions, deadlines,
+grades, and other academic records directly in Canvas.
+
+You are responsible for complying with applicable institutional
+policies, service terms, and restrictions on the materials you process.
+
+See the [MIT License](LICENSE) and [Security policy](SECURITY.md).
+
 ## Original project and acknowledgements
 
 Built on [ynbh/canvasmcp](https://github.com/ynbh/canvasmcp), independently maintained by amzonmeeee for HKUST Canvas. The original CLI, MCP tools, Chrome-session authentication and tests form the foundation; the original copyright notice remains in [LICENSE](LICENSE).
 
 Thanks to [vishalsachdev/canvas-mcp](https://github.com/vishalsachdev/canvas-mcp) for informing submission status, peer review, Inbox, discussion, comment, module completion and course structure workflows. These additions use Canvas's official APIs.
 
-MIT licensed. This independent project is not affiliated with or endorsed by HKUST, Instructure, OpenAI, Anthropic or Google. It uses only the signed-in user's permissions; connected services remain subject to their terms and institutional policies.
+MIT licensed; see [LICENSE](LICENSE) for the original and derivative-work copyright notices.
