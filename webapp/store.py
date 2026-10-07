@@ -93,6 +93,13 @@ def migrate(db):
             "ALTER TABLE workspaces ADD COLUMN archived INTEGER NOT NULL DEFAULT 0"
         )
         db.execute("PRAGMA user_version=5")
+        version = 5
+    if version < 6:
+        db.execute("CREATE TABLE app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        used = bool(db.execute("SELECT EXISTS(SELECT 1 FROM workspaces) OR EXISTS(SELECT 1 FROM provider_configs)").fetchone()[0])
+        for key in ("onboarding_completed", "canvas_enabled"):
+            db.execute("INSERT INTO app_settings VALUES (?, ?)", (key, json.dumps(used)))
+        db.execute("PRAGMA user_version=6")
 
 
 JSON_FIELDS = {
@@ -119,6 +126,15 @@ def decode(row):
 class StudyStore:
     def __init__(self, repository: WorkspaceRepository):
         self.repository = repository
+
+    def setting(self, key, default=False):
+        with closing(self.repository._connect()) as db:
+            row = db.execute("SELECT value FROM app_settings WHERE key=?", (key,)).fetchone()
+            return json.loads(row[0]) if row else default
+
+    def set_setting(self, key, value):
+        with closing(self.repository._connect()) as db, db:
+            db.execute("INSERT INTO app_settings VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, json.dumps(value)))
 
     def sources(self, workspace_id):
         with closing(self.repository._connect()) as db:

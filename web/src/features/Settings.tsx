@@ -8,7 +8,7 @@ import { ProviderSettings } from "./Providers";
 import { CanvasConfiguration } from "./CanvasConfiguration";
 import { LocalClients } from "./LocalClients";
 
-export function SettingsPage() {
+export function SettingsPage({ onSetup }: { onSetup?: () => void } = {}) {
   const [sendShortcut, setSendShortcut] = useSendShortcut();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState("");
@@ -40,6 +40,11 @@ export function SettingsPage() {
         <div>
           <h1>Settings</h1>
           <p>One Canvas connection. Your choice of client.</p>
+          {onSetup && (
+            <button className="text-button" onClick={onSetup}>
+              Revisit setup
+            </button>
+          )}
         </div>
       </header>
       {error && <ErrorNotice message={error} retry={() => void load()} />}

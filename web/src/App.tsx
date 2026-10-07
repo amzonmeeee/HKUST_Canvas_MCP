@@ -8,22 +8,28 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { initializeSession } from "./api";
+import { api, initializeSession } from "./api";
 import { ErrorNotice, Loading } from "./components";
 import { Dashboard } from "./features/Dashboard";
 import { WorkspacePage } from "./features/Workspace";
 import { SettingsPage } from "./features/Settings";
+import { Onboarding } from "./features/Onboarding";
 
 export function App() {
   const [path, setPath] = useState(window.location.pathname);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [collapsed, setCollapsed] = useState(false);
+  const [setupNeeded, setSetupNeeded] = useState(false);
   useEffect(() => {
     let active = true;
     initializeSession()
-      .then(() => {
-        if (active) setReady(true);
+      .then(async () => {
+        const setup = await api<{ completed: boolean }>("/api/onboarding");
+        if (active) {
+          setSetupNeeded(!setup.completed);
+          setReady(true);
+        }
       })
       .catch(() => {
         if (active)
@@ -130,10 +136,17 @@ export function App() {
               <Loading>Connecting to your workbench…</Loading>
             )}
           </div>
+        ) : setupNeeded || path === "/setup" ? (
+          <Onboarding
+            onComplete={() => {
+              setSetupNeeded(false);
+              navigate("/");
+            }}
+          />
         ) : dashboard ? (
           <Dashboard navigate={navigate} />
         ) : settings ? (
-          <SettingsPage />
+          <SettingsPage onSetup={() => navigate("/setup")} />
         ) : workspaceId ? (
           <WorkspacePage
             key={workspaceId}

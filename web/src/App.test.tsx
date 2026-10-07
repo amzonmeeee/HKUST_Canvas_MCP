@@ -44,6 +44,7 @@ beforeEach(() => {
       let result: unknown;
       let status = 200;
       if (path === "/api/session") result = { csrf_token: "synthetic-csrf" };
+      else if (path === "/api/onboarding") result = { completed: true };
       else if (path === "/api/canvas/profiles")
         result = {
           profiles: [

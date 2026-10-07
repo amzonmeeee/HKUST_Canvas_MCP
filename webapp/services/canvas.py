@@ -25,9 +25,10 @@ class CanvasServiceError(Exception):
 class CanvasService:
     """Reuse registered v2 handlers; expose only the fields this UI needs."""
 
-    def __init__(self):
+    def __init__(self, configured=None):
         self._profile_context = None
         self._lock = RLock()
+        self._configured = configured or (lambda: True)
 
     def status(self) -> dict:
         with self._lock:
@@ -43,6 +44,7 @@ class CanvasService:
                     {
                         "id": Path(p.path).name,
                         "name": p.name,
+                        "location": f"Chrome / {Path(p.path).name}",
                         "selected": False
                         if unlinked
                         else str(Path(p.path)) == str(path)
@@ -88,9 +90,8 @@ class CanvasService:
             self._profile_context = None
             return {"unlinked": True, "cached_data_retained": True}
 
-    @staticmethod
-    def _require_connected():
-        if is_canvas_unlinked():
+    def _require_connected(self):
+        if is_canvas_unlinked() or not self._configured():
             raise CanvasServiceError(
                 "canvas_unconfigured",
                 "Canvas is not connected. Choose a Chrome profile to reconnect.",
@@ -98,7 +99,7 @@ class CanvasService:
             )
 
     def _status(self) -> dict:
-        if is_canvas_unlinked():
+        if is_canvas_unlinked() or not self._configured():
             return {
                 "auth_verified": False,
                 "auth_status": "unconfigured",
@@ -134,6 +135,7 @@ class CanvasService:
             else "Canvas could not be reached. Check your network and Chrome session, then retry."
             if unavailable
             else "Sign in to HKUST Canvas in your selected Chrome profile, then retry.",
+            **({"account": result["account"]} if verified and isinstance(result.get("account"), dict) else {}),
         }
 
     @staticmethod

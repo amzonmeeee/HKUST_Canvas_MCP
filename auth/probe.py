@@ -115,6 +115,12 @@ def get_auth_status(
         status["auth_mode"] = "chrome-session"
         status["auth_verified"] = True
         status["auth_status"] = "verified"
+        try:
+            account = response.json()
+            if isinstance(account, dict) and isinstance(account.get("id"), (int, str)) and isinstance(account.get("name"), str):
+                status["account"] = {"id": str(account["id"])[:40], "name": account["name"][:160]}
+        except (AttributeError, ValueError, TypeError):
+            pass
         return status
 
     body_prefix = response.text[:300].casefold()

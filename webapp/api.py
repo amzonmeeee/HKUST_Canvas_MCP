@@ -74,7 +74,9 @@ def create_app(
     provider_factory=None,
 ) -> FastAPI:
     repository = WorkspaceRepository(data_dir or default_data_dir())
-    canvas = canvas_service or CanvasService()
+    from .store import StudyStore
+
+    canvas = canvas_service or CanvasService(configured=lambda: StudyStore(repository).setting("canvas_enabled"))
     launch_secret = launch_secret or secrets.token_urlsafe(32)
     session_secret, csrf_secret = secrets.token_urlsafe(32), secrets.token_urlsafe(32)
     assets = static_dir or Path(__file__).parent / "static"

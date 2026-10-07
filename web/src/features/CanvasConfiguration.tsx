@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 
-type Profile = { id: string; name: string; selected: boolean };
+type Profile = {
+  id: string;
+  name: string;
+  selected: boolean;
+  location?: string;
+};
 export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
   const [profiles, setProfiles] = useState<Profile[] | null>(null);
   const [selected, setSelected] = useState("");
@@ -11,6 +16,11 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
   const [saved, setSaved] = useState(false);
   const [unlinked, setUnlinked] = useState(false);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
+  const [checked, setChecked] = useState<{
+    auth_verified: boolean;
+    message: string;
+    account?: { id: string; name: string };
+  } | null>(null);
   async function load() {
     setError("");
     try {
@@ -38,6 +48,7 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
         body: { profile_id: selected },
       });
       setSaved(true);
+      setChecked(null);
       setUnlinked(false);
       setConfirmUnlink(false);
       onChanged();
@@ -54,8 +65,32 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
     try {
       await api("/api/canvas/profile", { method: "DELETE" });
       setUnlinked(true);
+      setChecked(null);
       setSelected("");
       setConfirmUnlink(false);
+      onChanged();
+    } catch (problem) {
+      setError((problem as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function check() {
+    setBusy(true);
+    setError("");
+    setChecked(null);
+    try {
+      const result = await api<{
+        auth_verified: boolean;
+        message: string;
+        account?: { id: string; name: string };
+      }>("/api/canvas/profile/test", {
+        method: "POST",
+        body: { profile_id: selected },
+      });
+      setChecked(result);
+      setUnlinked(false);
+      setSaved(false);
       onChanged();
     } catch (problem) {
       setError((problem as Error).message);
@@ -91,12 +126,14 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
               onChange={(event) => {
                 setSelected(event.target.value);
                 setSaved(false);
+                setChecked(null);
               }}
             >
               <option value="">Choose a Chrome profile</option>
               {profiles.map((profile) => (
                 <option key={profile.id} value={profile.id}>
                   {profile.name}
+                  {profile.location ? ` · ${profile.location}` : ""}
                 </option>
               ))}
             </select>
@@ -110,6 +147,14 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
               : unlinked
                 ? "Connect Canvas"
                 : "Save Canvas profile"}
+          </button>
+          <button
+            type="button"
+            className="button secondary small"
+            disabled={busy || !selected}
+            onClick={() => void check()}
+          >
+            Check connection
           </button>
           <p className="muted">
             Sign into canvas.ust.hk in this profile. Changing profiles clears
@@ -156,6 +201,27 @@ export function CanvasConfiguration({ onChanged }: { onChanged: () => void }) {
           </button>
         ))}
       {saved && <p role="status">Canvas profile saved.</p>}
+      {checked && (
+        <div role="status">
+          <p>
+            {checked.auth_verified
+              ? "Connected to canvas.ust.hk."
+              : "No active HKUST Canvas session was found."}
+          </p>
+          {checked.account && (
+            <p>
+              Signed in as {checked.account.name} (Canvas ID{" "}
+              {checked.account.id}).
+            </p>
+          )}
+          {!checked.auth_verified && (
+            <p>
+              Open Canvas in Chrome, sign in normally, then select Check
+              connection again. {checked.message}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

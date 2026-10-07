@@ -113,6 +113,7 @@ async function mockApi(page: Page) {
     let result: unknown;
     if (path === "/api/session")
       result = { csrf_token: "synthetic-browser-csrf" };
+    else if (path === "/api/onboarding") result = { completed: true };
     else if (path === "/api/canvas/status")
       result = {
         auth_verified: !canvasUnlinked,
@@ -169,6 +170,7 @@ async function mockApi(page: Page) {
           },
         ],
       };
+    else if (path === "/api/canvas/profile/test") result = { auth_verified: true, message: "Connected.", account: { id: "1", name: "Synthetic user" } };
     else if (path === "/api/canvas/profile") {
       if (method === "DELETE") {
         canvasUnlinked = true;
@@ -440,6 +442,30 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
+test("first-run setup tests a profile, acknowledges sharing, skips providers and stays completed", async ({ page }) => {
+  let completed = false;
+  await page.route("**/api/onboarding", async route => {
+    if (route.request().method() === "PUT") completed = true;
+    await route.fulfill({ json: { completed } });
+  });
+  await page.goto("/#session=synthetic-launch");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Check connection" }).click();
+  await expect(page.getByText("Signed in as Synthetic user (Canvas ID 1).")).toBeVisible();
+  await page.getByRole("button", { name: "Continue / skip for now" }).click();
+  await page.getByRole("button", { name: "Continue / skip for now" }).click();
+  await expect(page.getByRole("button", { name: "Continue", exact: true })).toBeDisabled();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.getByRole("checkbox").check();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("button", { name: "Continue / skip for now" }).click();
+  await page.getByRole("button", { name: "Open workbench" }).click();
+  await expect(page.getByRole("heading", { name: "Your study starts here." })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Your study starts here." })).toBeVisible();
+});
+
 test("Canvas unlink confirms, keeps a workspace and requires explicit reconnect", async ({
   page,
 }) => {
@@ -469,7 +495,9 @@ test("Canvas unlink confirms, keeps a workspace and requires explicit reconnect"
     page.getByText("Canvas: Not connected", { exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "My workspaces 1" }).getByText(course.name, { exact: true }),
+    page
+      .getByRole("region", { name: "My workspaces 1" })
+      .getByText(course.name, { exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "Configure Canvas" }).click();
   await expect(

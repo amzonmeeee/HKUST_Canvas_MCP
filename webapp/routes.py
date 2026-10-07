@@ -35,6 +35,10 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class OnboardingComplete(StrictModel):
+    privacy_acknowledged: Literal[True]
+
+
 class SourceSelection(StrictModel):
     source_ids: list[UUID] = Field(max_length=300)
     force: bool = False
@@ -160,6 +164,16 @@ def register_study_routes(
     app.state.interactions = interactions
     router = APIRouter(prefix="/api")
 
+    @router.get("/onboarding")
+    def onboarding_state():
+        return {"completed": store.setting("onboarding_completed"), "privacy_acknowledged": store.setting("privacy_acknowledged"), "canvas_enabled": store.setting("canvas_enabled")}
+
+    @router.put("/onboarding")
+    def onboarding_complete(payload: OnboardingComplete):
+        store.set_setting("privacy_acknowledged", payload.privacy_acknowledged)
+        store.set_setting("onboarding_completed", True)
+        return {"completed": True}
+
     @router.get("/canvas/profiles")
     def profiles():
         return canvas.profiles()
@@ -167,12 +181,21 @@ def register_study_routes(
     @router.put("/canvas/profile")
     def select_profile(payload: ProfileSelection):
         result = canvas.choose_profile(payload.profile_id)
+        store.set_setting("canvas_enabled", True)
         interactions.cancel_all()
         return result
+
+    @router.post("/canvas/profile/test")
+    def test_profile(payload: ProfileSelection):
+        canvas.choose_profile(payload.profile_id)
+        store.set_setting("canvas_enabled", True)
+        interactions.cancel_all()
+        return canvas.status()
 
     @router.delete("/canvas/profile")
     def unlink_profile():
         result = canvas.unlink_profile()
+        store.set_setting("canvas_enabled", False)
         interactions.cancel_all()
         return result
 
