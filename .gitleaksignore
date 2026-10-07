@@ -1,0 +1,4 @@
+# Exact historical official Canvas API example, verified against:
+# https://github.com/instructure/canvas-lms/blob/master/app/controllers/jwts_controller.rb
+# No file/rule-wide exclusion; newly introduced credentials are still scanned.
+aa9d99d11a5cfcaf8b0f1a6a1697ed62acbbfb72:openapi3.json:jwt-base64:48397

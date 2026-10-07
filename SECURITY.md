@@ -40,6 +40,6 @@ Saved workspaces, source text, conversations, notes and exports may contain priv
 
 ## Reporting a vulnerability privately
 
-Use [GitHub private vulnerability reporting](https://github.com/amzonmeeee/HKUST_Canvas_MCP/security/advisories/new) when available. If the repository does not offer it, request a private contact channel in an issue without including vulnerability details.
+Use the repository's enabled [GitHub private vulnerability reporting](https://github.com/amzonmeeee/HKUST_Canvas_MCP/security/advisories/new). If it becomes unavailable, request a private contact channel in an issue without including vulnerability details.
 
 Include the affected version, a minimal reproduction using synthetic data and the expected impact. Never attach Canvas cookies, CSRF/SSO tokens, API keys, Chrome profiles, Keychain exports, private course exports, session links or unredacted logs/debug dumps to public issues. Do not use another person's account or modify live coursework to demonstrate a vulnerability.

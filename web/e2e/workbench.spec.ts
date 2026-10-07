@@ -757,12 +757,12 @@ test("existing CLI login and desktop connection are usable at both screen sizes"
   await desktop.getByRole("button", { name: "Connect Canvas" }).click();
   await expect(page.getByText(/Canvas MCP connected/)).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-native-settings-desktop.png",
+    path: screenshot("native-settings-desktop.png"),
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-native-settings-mobile.png",
+    path: screenshot("native-settings-mobile.png"),
     fullPage: true,
   });
   expect(
@@ -797,7 +797,7 @@ test("workspace fills wide screens and remembers pointer and keyboard panel size
     ),
   ).toBeLessThan(2);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-layout-wide.png",
+    path: screenshot("layout-wide.png"),
     fullPage: true,
   });
   const sourceBefore = Number(
@@ -898,7 +898,7 @@ test("workspace fills wide screens and remembers pointer and keyboard panel size
     else await expect(sourceDivider).toBeVisible();
   }
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-layout-mobile.png",
+    path: screenshot("layout-mobile.png"),
     fullPage: true,
   });
 });
@@ -1236,9 +1236,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
   );
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   const description = page.getByText(/Use a signed-in CLI, an official API/);
-  expect(
-    await description.evaluate((el) => getComputedStyle(el).maxWidth),
-  ).toBe("none");
+  await expect(description).toHaveCSS("max-width", "none");
   await page.screenshot({
     path: screenshot("new-settings-wide.png"),
     fullPage: true,
@@ -1404,11 +1402,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
   await expect(
     page.locator(".chat-message.assistant .study-markdown"),
   ).toBeVisible();
-  expect(
-    await page
-      .locator(".chat-message.assistant .study-markdown p")
-      .evaluate((el) => getComputedStyle(el).maxWidth),
-  ).toBe("none");
+  await expect(page.locator(".chat-message.assistant .study-markdown p")).toHaveCSS("max-width", "none");
   await page.screenshot({
     path: screenshot("workspace-wide.png"),
     fullPage: true,

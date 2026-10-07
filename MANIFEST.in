@@ -7,6 +7,8 @@ include PRODUCT.md DESIGN.md uv.lock
 include SECURITY.md
 recursive-include desktop *.swift *.py *.plist
 recursive-include scripts *.py
+recursive-include .github *.yml
+include .gitleaksignore
 recursive-include web *.json *.ts *.tsx *.css *.html *.md *.mjs
 exclude web/node_modules/*
 recursive-exclude web/node_modules *

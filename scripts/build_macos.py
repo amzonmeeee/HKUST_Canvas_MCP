@@ -118,6 +118,8 @@ def build(output: Path):
         run(
             "swiftc",
             "-O",
+            "-target",
+            f"{arch}-apple-macosx15.0",
             "-module-cache-path",
             Path(temporary) / "swift-cache",
             stage / "desktop/Launcher.swift",
@@ -153,7 +155,7 @@ def build(output: Path):
                     "CFBundleShortVersionString": version,
                     "CFBundleVersion": version,
                     "CFBundleIconFile": "Workbench.icns",
-                    "LSMinimumSystemVersion": "13.0",
+                    "LSMinimumSystemVersion": "15.0",
                     "NSHighResolutionCapable": True,
                 },
                 stream,

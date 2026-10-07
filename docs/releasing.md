@@ -36,7 +36,11 @@ By default the app is ad-hoc signed, **not notarized**. If available, pass a Dev
 
 ## Validation and publication
 
-R5 adds automated PR/release-branch checks and a tag-driven release workflow. Required gates: Python tests, frontend unit tests, TypeScript/production build, isolated Playwright flows, secret scan, wheel install smoke and native installed-app smoke. All test data must be synthetic. No real Chrome cookies, HKUST calls or paid-provider requests belong in CI.
+The Release checks workflow runs on PRs, main/release branches and manual dispatch. It tests Ubuntu 24.04 and macOS 15, then builds/smoke-tests an arm64 native app. Actions are pinned to verified commit SHAs; uv 0.12.23, Python 3.12.15, Node 22.23.0 and Gitleaks 8.30.1 are pinned. Required gates: Python tests, frontend unit tests, TypeScript/production build, isolated Playwright flows, full-history secret scan, wheel install smoke and native installed-app smoke. All test data is synthetic; Chrome access and external HTTP are blocked by the Python test fixture.
+
+The only secret-scan exception is an exact historical fingerprint for the official public Canvas JWT documentation example, verified against Instructure's source. No whole file, rule or test directory is excluded.
+
+The Publish versioned release workflow calls all those checks again for a tag. It validates tag/Python/frontend version agreement, merges the verified package and macOS assets, creates checksums and creates the GitHub Release using its scoped repository token. It refuses to overwrite an existing release. Publish notes live at docs/release-notes-vVERSION.md. PyPI publishing is intentionally not configured.
 
 Before creating `v3.0.0`, verify Python and frontend versions agree, review the exact files to publish, build wheel/sdist/app/DMG, and hash the downloadable files into `SHA256SUMS`. A release must describe supported architectures, signing/notarization and actual test scope. Upload only release artifacts and checksums, never logs, session markers or app-data directories.
 

@@ -1,0 +1,104 @@
+name: Release checks
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'release/**']
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Tests and packages (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.23'
+          python-version: '3.12.15'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.0'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: uv sync --locked --extra web --group packaging --no-editable --python 3.12.15
+      - name: Isolated Python tests
+        run: .venv/bin/python -m pytest -q
+      - run: npm ci
+        working-directory: web
+      - run: npm test
+        working-directory: web
+      - name: TypeScript and production assets
+        run: npm run build
+        working-directory: web
+      - run: npm exec playwright install --with-deps chromium
+        working-directory: web
+      - name: Synthetic browser flows
+        run: npm run test:e2e
+        working-directory: web
+      - name: Secret scan (entire Git history)
+        env:
+          SCANNER_DIR: ${{ runner.temp }}/workbench-scanner
+        run: |
+          .venv/bin/python scripts/install_gitleaks.py "$SCANNER_DIR"
+          "$SCANNER_DIR/gitleaks" git --redact --no-banner .
+      - name: Build distributions
+        run: |
+          export SOURCE_DATE_EPOCH=$(git log -1 --format=%ct)
+          uv build --python .venv/bin/python
+          .venv/bin/python scripts/audit_release.py dist
+      - name: Fresh wheel installation
+        run: .venv/bin/python scripts/smoke_wheel.py dist/*.whl
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.os == 'ubuntu-24.04'
+        with:
+          name: release-python
+          path: |
+            dist/*.whl
+            dist/*.tar.gz
+          if-no-files-found: error
+
+  macos:
+    name: Native Apple Silicon app
+    needs: checks
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: '0.12.23'
+          python-version: '3.12.15'
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22.23.0'
+      - run: uv sync --locked --extra web --group packaging --no-editable --python 3.12.15
+      - run: npm ci && npm run build
+        working-directory: web
+      - name: Build and test self-contained app
+        run: |
+          .venv/bin/python -c 'import platform; assert platform.machine() == "arm64"'
+          .venv/bin/python scripts/build_macos.py --output dist/macos
+          .venv/bin/python scripts/smoke_macos.py 'dist/macos/HKUST Canvas Workbench.app'
+          .venv/bin/python scripts/audit_release.py dist/macos
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-macos
+          path: |
+            dist/macos/*.zip
+            dist/macos/*.dmg
+          if-no-files-found: error
