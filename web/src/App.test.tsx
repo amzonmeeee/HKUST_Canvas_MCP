@@ -44,6 +44,12 @@ beforeEach(() => {
       let result: unknown;
       let status = 200;
       if (path === "/api/session") result = { csrf_token: "synthetic-csrf" };
+      else if (path === "/api/canvas/profiles")
+        result = {
+          profiles: [
+            { id: "Default", name: "Synthetic profile", selected: true },
+          ],
+        };
       else if (path === "/api/canvas/status")
         result = {
           auth_verified: !coursesFail,

@@ -53,6 +53,25 @@ export function ChatPanel({
     [deleting, setDeleting] = useState(false),
     [retrieved, setRetrieved] = useState<Citation[]>([]),
     [saved, setSaved] = useState<string[]>([]);
+  const [sendShortcut, setSendShortcut] = useState<"enter" | "mod-enter">(
+    () => {
+      try {
+        return localStorage.getItem("canvas-workbench.send-shortcut") ===
+          "enter"
+          ? "enter"
+          : "mod-enter";
+      } catch {
+        return "mod-enter";
+      }
+    },
+  );
+  useEffect(() => {
+    try {
+      localStorage.setItem("canvas-workbench.send-shortcut", sendShortcut);
+    } catch {
+      /* Optional preference. */
+    }
+  }, [sendShortcut]);
   const controller = useRef<AbortController | null>(null),
     end = useRef<HTMLDivElement>(null);
   const provider = providers.find((p) => p.id === providerId);
@@ -108,7 +127,7 @@ export function ChatPanel({
   }
   async function send(event: React.FormEvent) {
     event.preventDefault();
-    if (!text.trim() || !providerId) return;
+    if (busy || !text.trim() || !providerId) return;
     const prompt = text.trim();
     setText("");
     setBusy(true);
@@ -250,61 +269,62 @@ export function ChatPanel({
   }
   return (
     <div className="chat-content">
-      <div className="chat-controls">
-        <label>
-          <span>Provider</span>
-          <select
-            value={providerId}
-            disabled={busy}
-            onChange={(e) => setProviderId(e.target.value)}
-          >
-            <option value="">Choose a provider</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.model}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          className="icon-button"
-          aria-label="New conversation"
-          disabled={busy}
-          onClick={() => void open("")}
-        >
-          <Plus size={18} />
-        </button>
-      </div>
-      {conversations.length > 0 && (
-        <div className="conversation-controls">
-          <label className="visually-hidden" htmlFor="conversation-choice">
-            Conversation history
-          </label>
-          <select
-            id="conversation-choice"
-            value={conversationId}
-            disabled={busy}
-            onChange={(e) => void open(e.target.value)}
-          >
-            <option value="">New conversation</option>
-            {conversations.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.title}
-              </option>
-            ))}
-          </select>
-          {conversationId && (
-            <button
-              className="icon-button"
+      <div className="chat-toolbar">
+        <div className="chat-controls">
+          <label>
+            <span>Provider</span>
+            <select
+              value={providerId}
               disabled={busy}
-              aria-label="Delete conversation"
-              onClick={() => setDeleting(!deleting)}
+              onChange={(e) => setProviderId(e.target.value)}
             >
-              <Trash2 size={16} />
-            </button>
-          )}
+              <option value="">Choose a provider</option>
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} · {p.model}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            className="icon-button"
+            aria-label="New conversation"
+            disabled={busy}
+            onClick={() => void open("")}
+          >
+            <Plus size={18} />
+          </button>
         </div>
-      )}
+        {conversations.length > 0 && (
+          <div className="conversation-controls">
+            <label htmlFor="conversation-choice">History</label>
+            <select
+              id="conversation-choice"
+              aria-label="Conversation history"
+              value={conversationId}
+              disabled={busy}
+              onChange={(e) => void open(e.target.value)}
+            >
+              <option value="">New conversation</option>
+              {conversations.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.title}
+                </option>
+              ))}
+            </select>
+            {conversationId && (
+              <button
+                className="icon-button"
+                disabled={busy}
+                aria-label="Delete conversation"
+                onClick={() => setDeleting(!deleting)}
+              >
+                <Trash2 size={16} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
       {deleting && (
         <div className="inline-confirm">
           <p>Delete this conversation?</p>
@@ -409,11 +429,58 @@ export function ChatPanel({
           rows={3}
           maxLength={12000}
           onChange={(e) => setText(e.target.value)}
+          onKeyDown={(event) => {
+            if (
+              event.key !== "Enter" ||
+              event.nativeEvent.isComposing ||
+              event.keyCode === 229 ||
+              event.repeat
+            )
+              return;
+            const modified = event.metaKey || event.ctrlKey;
+            const shouldSend =
+              sendShortcut === "enter"
+                ? !modified && !event.shiftKey && !event.altKey
+                : modified && !event.shiftKey && !event.altKey;
+            if (shouldSend) {
+              event.preventDefault();
+              event.currentTarget.form?.requestSubmit();
+            } else if (modified) {
+              event.preventDefault();
+              const input = event.currentTarget,
+                start = input.selectionStart,
+                finish = input.selectionEnd;
+              setText(text.slice(0, start) + "\n" + text.slice(finish));
+              requestAnimationFrame(() =>
+                input.setSelectionRange(start + 1, start + 1),
+              );
+            }
+          }}
           placeholder="Ask about selected sources, or request a live Canvas check…"
           disabled={busy}
         />
         <div className="composer-footer">
-          <span>{sourceIds.length} sources selected</span>
+          <div className="composer-options">
+            <span>{sourceIds.length} sources selected</span>
+            <label>
+              Send with{" "}
+              <select
+                aria-label="Send shortcut"
+                value={sendShortcut}
+                onChange={(event) =>
+                  setSendShortcut(event.target.value as "enter" | "mod-enter")
+                }
+              >
+                <option value="enter">Return</option>
+                <option value="mod-enter">⌘ / Ctrl + Return</option>
+              </select>
+            </label>
+            <small>
+              {sendShortcut === "enter"
+                ? "⌘ / Ctrl + Return or Shift + Return for a new line"
+                : "Return for a new line"}
+            </small>
+          </div>
           {busy ? (
             <button
               type="button"

@@ -8,6 +8,8 @@ import {
   CircleHelp,
   Layers,
   BookOpen,
+  FileText,
+  Table2,
 } from "lucide-react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
@@ -44,6 +46,8 @@ export function StudioPanel({
   const [artifacts, setArtifacts] = useState<Artifact[]>([]),
     [notes, setNotes] = useState<Note[]>([]),
     [kind, setKind] = useState<Artifact["kind"]>("quiz"),
+    [prompt, setPrompt] = useState(""),
+    [template, setTemplate] = useState("automatic"),
     [topic, setTopic] = useState(""),
     [count, setCount] = useState(5),
     [difficulty, setDifficulty] =
@@ -90,6 +94,8 @@ export function StudioPanel({
           topic,
           count,
           difficulty,
+          prompt,
+          template,
         },
       });
       openArtifact(a);
@@ -348,7 +354,7 @@ export function StudioPanel({
                 )}
               </section>
             ))}
-          {active.kind === "study_guide" &&
+          {(active.kind === "study_guide" || active.kind === "document") &&
             active.content.sections?.map((s, i) => (
               <section className="guide-section" key={i}>
                 <h4>{s.heading}</h4>
@@ -373,7 +379,54 @@ export function StudioPanel({
                 />
               </section>
             ))}
+          {active.kind === "spreadsheet" && (
+            <div className="studio-table-scroll">
+              <table className="studio-table">
+                <thead>
+                  <tr>
+                    {active.content.columns?.map((column, i) => (
+                      <th key={i} scope="col">
+                        {column}
+                      </th>
+                    ))}
+                    <th scope="col">Sources</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {active.content.rows?.map((row, i) => (
+                    <tr key={i}>
+                      {row.cells?.map((cell, j) => (
+                        <td key={j}>{cell}</td>
+                      ))}
+                      <td>
+                        <CitationList
+                          citations={itemCitations(row.citations)}
+                          open={openCitation}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="artifact-actions">
+            <a
+              className="button secondary small"
+              href={`${base}/artifacts/${active.id}/export?format=docx&template=${template}`}
+              download
+            >
+              <Download size={14} />
+              Word (.docx)
+            </a>
+            <a
+              className="button secondary small"
+              href={`${base}/artifacts/${active.id}/export?format=xlsx`}
+              download
+            >
+              <Download size={14} />
+              Excel (.xlsx)
+            </a>
             <button
               className="text-button"
               disabled={saved}
@@ -486,6 +539,8 @@ export function StudioPanel({
                       label: "Study guide",
                       icon: BookOpen,
                     },
+                    { value: "document", label: "Word", icon: FileText },
+                    { value: "spreadsheet", label: "Excel", icon: Table2 },
                   ] as const
                 ).map((option) => (
                   <button
@@ -501,6 +556,31 @@ export function StudioPanel({
                 ))}
               </div>
             </fieldset>
+            {kind === "document" && (
+              <label>
+                Document template
+                <small>
+                  Choose a layout style, or let the model select based on the
+                  content.
+                </small>
+                <select
+                  value={template}
+                  onChange={(event) => setTemplate(event.target.value)}
+                  disabled={busy}
+                >
+                  <option value="automatic">Automatic</option>
+                  <option value="study_notes">
+                    Study notes · Easy reading
+                  </option>
+                  <option value="revision_outline">
+                    Revision outline · Compact
+                  </option>
+                  <option value="analysis_report">
+                    Analysis report · Professional
+                  </option>
+                </select>
+              </label>
+            )}
             <label>
               Topic or focus
               <input
@@ -510,13 +590,26 @@ export function StudioPanel({
                 placeholder="Leave blank for selected material"
               />
             </label>
+            <label>
+              Instructions
+              <textarea
+                rows={3}
+                maxLength={6000}
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder="Describe what to create, the language, or points to focus on…"
+                disabled={busy}
+              />
+            </label>
             <div className="item-count-row">
               <label>
                 {kind === "quiz"
                   ? "Questions"
                   : kind === "flashcards"
                     ? "Cards"
-                    : "Sections"}
+                    : kind === "spreadsheet"
+                      ? "Rows"
+                      : "Sections"}
                 <input
                   type="number"
                   value={count}

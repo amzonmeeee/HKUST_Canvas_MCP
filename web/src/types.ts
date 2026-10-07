@@ -113,16 +113,20 @@ export type ArtifactItem = {
   heading?: string;
   body?: string;
   citations: string[];
+  cells?: string[];
 };
 export type Artifact = {
   id: string;
-  kind: "quiz" | "flashcards" | "study_guide";
+  kind: "quiz" | "flashcards" | "study_guide" | "document" | "spreadsheet";
   title: string;
   content: {
     title: string;
     questions?: ArtifactItem[];
     cards?: ArtifactItem[];
     sections?: ArtifactItem[];
+    template?: string;
+    columns?: string[];
+    rows?: ArtifactItem[];
   };
   provenance: {
     citations: Citation[];

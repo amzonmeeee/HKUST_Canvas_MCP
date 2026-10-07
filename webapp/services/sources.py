@@ -17,6 +17,7 @@ from ..parsers import (
     html_sections,
     parse_file,
 )
+from ..source_preview import canvas_html
 from ..store import StudyStore
 from .canvas import CanvasServiceError
 
@@ -58,6 +59,60 @@ class SourceService:
         os.chmod(root, 0o700)
         os.chmod(folder, 0o700)
         return folder
+
+    def _preview_path(self, source):
+        path = self.folder(source["id"]) / "canvas-preview-v1.html"
+        if path.is_symlink():
+            raise ParseError(
+                "storage_error", "Source previews cannot be symbolic links."
+            )
+        return path
+
+    def _save_preview(self, source, body):
+        path = self._preview_path(source)
+        path.touch(mode=0o600)
+        os.chmod(path, 0o600)
+        path.write_text(canvas_html(body), encoding="utf-8")
+
+    def preview(self, workspace, source):
+        kind = source["kind"]
+        if kind not in {
+            "syllabus",
+            "page",
+            "assignment",
+            "discussion",
+            "announcement",
+        } or source["status"] not in {"ready", "stale"}:
+            return None
+        path = self._preview_path(source)
+        if not path.exists():
+            course_id, object_id = (
+                workspace["canvas_course_id"],
+                source["canvas_object_id"],
+            )
+            if kind == "syllabus":
+                raw = self.canvas.client_call(
+                    "get_course", course_id=course_id, include=["syllabus_body"]
+                )
+                body = raw.get("syllabus_body") or ""
+            elif kind == "page":
+                raw = self.canvas.client_call(
+                    "get_page", course_id=course_id, url_or_id=object_id
+                )
+                body = raw.get("body") or ""
+            elif kind == "assignment":
+                raw = self.canvas.client_call(
+                    "get_assignment", course_id=course_id, assignment_id=object_id
+                )
+                body = raw.get("description") or ""
+            else:
+                raw = self.canvas.client_call(
+                    "get_discussion_topic", course_id=course_id, topic_id=object_id
+                )
+                body = raw.get("message") or ""
+            self._save_preview(source, body)
+        with path.open(encoding="utf-8") as saved:
+            return saved.read(4_000_000)
 
     def inventory(self, workspace):
         course_id = workspace.get("canvas_course_id")
@@ -434,6 +489,8 @@ class SourceService:
                     raise ParseError(
                         "unsupported_format", "This source type cannot be indexed."
                     )
+                if kind != "module":
+                    self._save_preview(source, body)
                 checksum = hashlib.sha256(body.encode()).hexdigest()
                 source = self.store.upsert_source(
                     workspace["id"],

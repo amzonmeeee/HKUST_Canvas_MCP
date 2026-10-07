@@ -30,6 +30,7 @@ web = [
   "keyring>=25,<26",
   "pypdf>=5,<7",
   "python-docx>=1.1,<2",
+  "openpyxl>=3.1,<4",
   "python-pptx>=1,<2",
   "python-multipart>=0.0.20,<1",
 ]
@@ -46,6 +47,7 @@ dev = [
   "keyring>=25,<26",
   "pypdf>=5,<7",
   "python-docx>=1.1,<2",
+  "openpyxl>=3.1,<4",
   "python-pptx>=1,<2",
   "python-multipart>=0.0.20,<1",
 ]

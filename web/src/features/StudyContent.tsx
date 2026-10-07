@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { createElement, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { X, ArrowUpRight } from "lucide-react";
@@ -11,6 +12,60 @@ export function locatorLabel(locator: Record<string, string | number>) {
     .filter(([key, value]) => key !== "offset" && value !== "")
     .map(([key, value]) => `${key[0].toUpperCase() + key.slice(1)} ${value}`)
     .join(" · ");
+}
+
+export function CanvasSourceBody({ html }: { html: string }) {
+  const content = useMemo(() => {
+    const document = new DOMParser().parseFromString(html, "text/html");
+    function render(node: Node, key: string, depth = 0): ReactNode {
+      if (node.nodeType === Node.TEXT_NODE || depth > 40)
+        return node.textContent;
+      if (!(node instanceof Element)) return null;
+      const style: Record<string, string> = {};
+      // DOMParser can discard CSS declarations under the app's strict CSP.
+      // Read the server-sanitized attribute and apply it through React's CSSOM.
+      for (const declaration of (node.getAttribute("style") || "").split(";")) {
+        const separator = declaration.indexOf(":");
+        if (separator < 1) continue;
+        const property = declaration.slice(0, separator).trim();
+        const value = declaration.slice(separator + 1).trim();
+        if (property && value)
+          style[
+            property.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase())
+          ] = value;
+      }
+      const props: Record<string, unknown> = {
+        key,
+        style: style as CSSProperties,
+      };
+      for (const [attribute, property] of Object.entries({
+        href: "href",
+        target: "target",
+        rel: "rel",
+        referrerpolicy: "referrerPolicy",
+        dir: "dir",
+        colspan: "colSpan",
+        rowspan: "rowSpan",
+        start: "start",
+        class: "className",
+      }))
+        if (node.hasAttribute(attribute))
+          props[property] = node.getAttribute(attribute);
+      const children = Array.from(node.childNodes).map((child, index) =>
+        render(child, `${key}.${index}`, depth + 1),
+      );
+      const tag = node.tagName.toLowerCase();
+      return createElement(
+        tag,
+        props,
+        ...(["br", "hr", "col"].includes(tag) ? [] : children),
+      );
+    }
+    return Array.from(document.body.childNodes).map((node, index) =>
+      render(node, String(index)),
+    );
+  }, [html]);
+  return <div className="canvas-source-body">{content}</div>;
 }
 
 export function StudyMarkdown({
@@ -109,6 +164,8 @@ export function SourceViewer({
   const [source, setSource] = useState<Source | null>(null),
     [chunks, setChunks] = useState<Chunk[]>([]),
     [total, setTotal] = useState(0),
+    [displayHtml, setDisplayHtml] = useState<string | null>(null),
+    [displayText, setDisplayText] = useState<string | null>(null),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(true);
   const panel = useRef<HTMLDivElement>(null);
@@ -146,10 +203,14 @@ export function SourceViewer({
             source: Source;
             chunks: Chunk[];
             total_chunks: number;
+            display_html?: string | null;
+            display_text?: string;
           }>(`/api/workspaces/${workspaceId}/sources/${sourceId}`);
           setSource(result.source);
           setChunks(result.chunks);
           setTotal(result.total_chunks);
+          setDisplayHtml(result.display_html || null);
+          setDisplayText(result.display_text || null);
         }
       } catch (problem) {
         setError((problem as Error).message);
@@ -188,7 +249,6 @@ export function SourceViewer({
       >
         <header>
           <div>
-            <p className="eyebrow">Source text</p>
             <h2 id="source-viewer-title">
               {source?.title || citation?.title || "Opening source…"}
             </h2>
@@ -229,12 +289,18 @@ export function SourceViewer({
             <small>Saved excerpt · {locatorLabel(citation.locator)}</small>
           </blockquote>
         )}
-        {chunks.map((c) => (
-          <section className="source-chunk" key={c.id}>
-            <h3>{locatorLabel(c.locator) || "Text excerpt"}</h3>
-            <p>{c.text}</p>
-          </section>
-        ))}
+        {displayHtml ? (
+          <CanvasSourceBody html={displayHtml} />
+        ) : displayText ? (
+          <div className="source-reading-text">{displayText}</div>
+        ) : (
+          chunks.map((c) => (
+            <section className="source-chunk" key={c.id}>
+              <h3>{locatorLabel(c.locator) || "Text excerpt"}</h3>
+              <p>{c.text}</p>
+            </section>
+          ))
+        )}
         {source?.metadata.external_url && (
           <a
             className="external-link"
@@ -258,7 +324,7 @@ export function SourceViewer({
           </p>
         )}
         {busy && <Loading>Reading source…</Loading>}
-        {!busy && chunks.length < total && (
+        {!displayHtml && !displayText && !busy && chunks.length < total && (
           <button className="button secondary" onClick={() => void more()}>
             Load more excerpts ({chunks.length}/{total})
           </button>

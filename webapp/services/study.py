@@ -316,7 +316,17 @@ class StudyService:
                     self._running.discard(conversation["id"])
 
     async def generate(
-        self, workspace, provider_id, source_ids, kind, topic, count, difficulty
+        self,
+        workspace,
+        provider_id,
+        source_ids,
+        kind,
+        topic,
+        count,
+        difficulty,
+        *,
+        prompt="",
+        template="automatic",
     ):
         self.scope(workspace["id"], source_ids)
         if not source_ids:
@@ -351,7 +361,7 @@ class StudyService:
             {"role": "system", "content": context_prompt(chunks)},
             {
                 "role": "user",
-                "content": f"Create {count} {kind} items at {difficulty} difficulty. Topic: {topic or 'the selected source excerpts'}. Use the language of these sources unless the topic requests another language. Ground every explanation in the supplied excerpts.",
+                "content": f"Create {count} {kind} items at {difficulty} difficulty. Topic: {topic or 'the selected source excerpts'}. Use the language of these sources unless the topic requests another language. Ground every explanation in the supplied excerpts.\nDocument template: {template}.\nAdditional user instructions: {prompt or 'None'}",
             },
         ]
         provider = self.provider_factory(config)
@@ -369,11 +379,33 @@ class StudyService:
             ) from exc
         valid = {c["id"]: c for c in chunks}
         items = result[
-            {"quiz": "questions", "flashcards": "cards", "study_guide": "sections"}[
-                kind
-            ]
+            {
+                "quiz": "questions",
+                "flashcards": "cards",
+                "study_guide": "sections",
+                "document": "sections",
+                "spreadsheet": "rows",
+            }[kind]
         ]
         used = set()
+        if (
+            kind == "document"
+            and template != "automatic"
+            and result["template"] != template
+        ):
+            raise ProviderError(
+                "invalid_template",
+                "The provider did not use the requested document template. Try again.",
+                422,
+            )
+        if kind == "spreadsheet" and any(
+            len(row["cells"]) != len(result["columns"]) for row in items
+        ):
+            raise ProviderError(
+                "invalid_table",
+                "The provider returned rows that do not match the table columns.",
+                422,
+            )
         for item in items:
             if any(c not in valid for c in item["citations"]):
                 raise ProviderError(
@@ -394,6 +426,10 @@ class StudyService:
             "difficulty": difficulty,
             "topic": topic,
             "count": count,
+            "prompt": prompt,
+            "template": result.get("template", template)
+            if kind == "document"
+            else None,
             "citations": [citation(valid[c]) for c in sorted(used)],
         }
         return self.store.save_artifact(
@@ -432,16 +468,31 @@ def artifact_schema(kind, count):
             "cards",
             {"front": string, "back": string, "citations": citations},
         )
-    elif kind == "study_guide":
+    elif kind in {"study_guide", "document"}:
         key, properties = (
             "sections",
             {"heading": string, "body": string, "citations": citations},
         )
+    elif kind == "spreadsheet":
+        key, properties = (
+            "rows",
+            {
+                "cells": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 12,
+                    "items": string,
+                },
+                "citations": citations,
+            },
+        )
     else:
         raise ProviderError(
-            "unsupported_artifact", "Choose quiz, flashcards or study guide.", 422
+            "unsupported_artifact",
+            "Choose quiz, flashcards, study guide, Word or Excel.",
+            422,
         )
-    return {
+    schema = {
         "type": "object",
         "additionalProperties": False,
         "required": ["title", key],
@@ -460,6 +511,21 @@ def artifact_schema(kind, count):
             },
         },
     }
+    if kind == "document":
+        schema["required"].append("template")
+        schema["properties"]["template"] = {
+            "type": "string",
+            "enum": ["study_notes", "revision_outline", "analysis_report"],
+        }
+    if kind == "spreadsheet":
+        schema["required"].append("columns")
+        schema["properties"]["columns"] = {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 12,
+            "items": {"type": "string", "minLength": 1, "maxLength": 120},
+        }
+    return schema
 
 
 def artifact_markdown(artifact):
@@ -487,6 +553,22 @@ def artifact_markdown(artifact):
                 " ".join(f"[cite:{c}]" for c in item["citations"]),
                 "",
             ]
+    elif artifact["kind"] == "spreadsheet":
+
+        def cell(value):
+            return str(value).replace("|", "\\|").replace("\n", " ")
+
+        lines += [
+            " | ".join(cell(c) for c in content["columns"]),
+            " | ".join("---" for _ in content["columns"]),
+        ]
+        lines += [
+            " | ".join(cell(c) for c in row["cells"])
+            + " "
+            + " ".join(f"[cite:{c}]" for c in row["citations"])
+            for row in content["rows"]
+        ]
+        lines.append("")
     else:
         for item in content["sections"]:
             lines += [

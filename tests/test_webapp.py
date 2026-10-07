@@ -624,3 +624,77 @@ def test_launcher_opens_browser_after_successful_startup_and_closes_socket(
     assert opened.call_args.args[0].startswith("http://127.0.0.1:12345/#session=")
     assert "Keep this terminal open" in capsys.readouterr().out
     sock.close.assert_called_once()
+
+
+def test_canvas_profile_selection_is_pinned_persistent_and_clears_previews(
+    tmp_path, monkeypatch
+):
+    from auth import settings as saved_settings
+    from auth.chrome_cookies import ChromeProfile
+    from auth.profiles import resolve_selected_chrome_profile
+
+    service = CanvasService()
+    profiles = [
+        ChromeProfile(
+            name="Synthetic profile", path=str(tmp_path / "Default"), cookie_file=None
+        ),
+        ChromeProfile(
+            name="Other synthetic profile",
+            path=str(tmp_path / "Profile 1"),
+            cookie_file=None,
+        ),
+    ]
+    monkeypatch.setattr("webapp.services.canvas.list_chrome_profiles", lambda: profiles)
+    monkeypatch.setattr(
+        "webapp.services.canvas.resolve_selected_chrome_profile",
+        resolve_selected_chrome_profile,
+    )
+    monkeypatch.setattr("webapp.services.canvas.reset_canvas_client", mock.Mock())
+    monkeypatch.setattr(saved_settings, "CONFIG_DIR", tmp_path / "config")
+    monkeypatch.setattr(
+        saved_settings, "CONFIG_PATH", tmp_path / "config" / "settings.json"
+    )
+    monkeypatch.setenv("CANVAS_CHROME_PROFILE", "Synthetic profile")
+    monkeypatch.delenv("CANVAS_CHROME_PROFILE_PATH", raising=False)
+    app = create_app(
+        data_dir=tmp_path / "workbench", launch_secret=LAUNCH, canvas_service=service
+    )
+    with TestClient(app, base_url=ORIGIN) as client:
+        assert client.get("/api/canvas/profiles").status_code == 401
+        bootstrap = client.post(
+            "/api/session",
+            headers={"Origin": ORIGIN, "Authorization": f"Bearer {LAUNCH}"},
+        )
+        client.headers.update(
+            {"Origin": ORIGIN, "X-Workbench-CSRF": bootstrap.json()["csrf_token"]}
+        )
+        result = client.get("/api/canvas/profiles").json()
+        assert result["profiles"][0]["selected"]
+        assert all(
+            "path" not in p and "cookie_file" not in p for p in result["profiles"]
+        )
+        app.state.interactions._pending["synthetic"] = {"deadline": 10**30}
+        assert (
+            client.put(
+                "/api/canvas/profile", json={"profile_id": "../../elsewhere"}
+            ).status_code
+            == 404
+        )
+        assert "synthetic" in app.state.interactions._pending
+        response = client.put("/api/canvas/profile", json={"profile_id": "Profile 1"})
+        assert (
+            response.status_code == 200
+            and response.json()["profile_name"] == "Other synthetic profile"
+        )
+        assert service.profile_name() == "Other synthetic profile"
+        assert not app.state.interactions._pending
+        assert saved_settings.load_settings()["chrome_profile_path"] == profiles[1].path
+        assert client.get("/api/canvas/profiles").json()["profiles"][1]["selected"]
+        assert (
+            client.put(
+                "/api/canvas/profile",
+                json={"profile_id": "Default"},
+                headers={"X-Workbench-CSRF": "invalid"},
+            ).status_code
+            == 403
+        )

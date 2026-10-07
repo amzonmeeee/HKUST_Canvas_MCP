@@ -92,6 +92,8 @@ export function App() {
             Your courses.
             <br />
             Your workspace.
+            <br />
+            Your data stays under your control.
           </p>
           <a
             href="https://canvas.ust.hk"

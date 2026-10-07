@@ -70,15 +70,14 @@ describe("Study safety and controls", () => {
           openCitation={() => {}}
         />,
       );
-      await user.click(
-        await screen.findByRole("button", { name: label }),
-      );
+      await user.click(await screen.findByRole("button", { name: label }));
       const slider = screen.getByRole("slider", { name: "Difficulty" });
       fireEvent.change(slider, { target: { value: String(step) } });
       expect(slider).toHaveAttribute("aria-valuetext", spokenLabel);
-      expect(
-        screen.getByRole("button", { name: label }),
-      ).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: label })).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
       expect(requests.every((r) => r.method === "GET")).toBe(true);
       await user.click(
         screen.getByRole("button", { name: "Generate material" }),
@@ -91,6 +90,8 @@ describe("Study safety and controls", () => {
         topic: "",
         count: 5,
         difficulty,
+        prompt: "",
+        template: "automatic",
       });
     },
   );

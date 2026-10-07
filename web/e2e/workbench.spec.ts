@@ -104,6 +104,7 @@ async function mockApi(page: Page) {
   let notes: Record<string, unknown>[] = [];
   let messages: Record<string, unknown>[] = [];
   let previews: Record<string, unknown>[] = [];
+  let profileName = "Demo profile";
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -115,7 +116,7 @@ async function mockApi(page: Page) {
       result = {
         auth_verified: true,
         auth_status: "verified",
-        profile_name: "Demo profile",
+        profile_name: profileName,
         message: "Connected.",
       };
     else if (path === "/api/canvas/courses")
@@ -137,7 +138,28 @@ async function mockApi(page: Page) {
         ],
         truncated: false,
       };
-    else if (path === "/api/settings")
+    else if (path === "/api/canvas/profiles")
+      result = {
+        profiles: [
+          {
+            id: "Default",
+            name: "Demo profile",
+            selected: profileName === "Demo profile",
+          },
+          {
+            id: "Profile 1",
+            name: "Second demo profile",
+            selected: profileName === "Second demo profile",
+          },
+        ],
+      };
+    else if (path === "/api/canvas/profile") {
+      profileName =
+        request.postDataJSON().profile_id === "Default"
+          ? "Demo profile"
+          : "Second demo profile";
+      result = { saved: true, profile_name: profileName };
+    } else if (path === "/api/settings")
       result = {
         phase: "A",
         profile_name: "Demo profile",
@@ -200,7 +222,24 @@ async function mockApi(page: Page) {
     else if (path === `/api/workspaces/${workspaceId}/sources`)
       result = { sources };
     else if (path.endsWith("/sources/inventory")) {
-      sources = [syntheticSource];
+      sources = [
+        syntheticSource,
+        {
+          ...syntheticSource,
+          id: "00000000-0000-4000-8000-000000000012",
+          source_key: "file:reading",
+          kind: "file",
+          title: "Reading handout",
+        },
+        {
+          ...syntheticSource,
+          id: "00000000-0000-4000-8000-000000000013",
+          source_key: "external:video",
+          kind: "external",
+          title: "Video reference",
+          status: "external_reference",
+        },
+      ];
       result = { sources, warnings: [] };
     } else if (path.endsWith("/sources/sync")) {
       sources = sources.map((s) => ({
@@ -231,6 +270,8 @@ async function mockApi(page: Page) {
           },
         ],
         total_chunks: 1,
+        display_html:
+          '<h2>Assignment instructions</h2><p>A <strong>complete</strong> paragraph.</p><ol><li>First requirement</li><li>Second requirement</li></ol><table><tr><th>Criterion</th><td>Evidence</td></tr></table><p style="text-align:center">Centered text</p>',
       };
     else if (path.endsWith(`/citations/${chunkId}`))
       result = {
@@ -689,6 +730,18 @@ test("workspace fills wide screens and remembers pointer and keyboard panel size
   await expect(studioDivider).toBeHidden();
   await page.getByRole("button", { name: "Study Studio", exact: true }).click();
   await expect(studioDivider).toBeVisible();
+  await page.getByRole("button", { name: "Study Studio", exact: true }).click();
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  expect(
+    (await page.locator(".chat-panel").boundingBox())!.width,
+  ).toBeGreaterThan(2000);
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: "Sources", exact: true }).click();
+  await page.getByRole("button", { name: "Study Studio", exact: true }).click();
   await studioDivider.press("Home");
   await expect(studioDivider).toHaveAttribute("aria-valuenow", "280");
   await sourceDivider.press("End");
@@ -727,6 +780,261 @@ test("workspace fills wide screens and remembers pointer and keyboard panel size
   }
   await page.screenshot({
     path: "/private/tmp/hkust-canvas-layout-mobile.png",
+    fullPage: true,
+  });
+});
+
+test("dashboard views, direct profile configuration and source-wide/category selection", async ({
+  page,
+}) => {
+  // Match the installed server's CSP, including DOMParser's treatment of styles.
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() !== "document") return route.fallback();
+    const response = await route.fetch();
+    await route.fulfill({
+      response,
+      headers: {
+        ...response.headers(),
+        "Content-Security-Policy":
+          "default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; " +
+          "img-src 'self' data:; connect-src 'self'; object-src 'none'; " +
+          "base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+      },
+    });
+  });
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/#session=synthetic-launch");
+  await page.getByRole("button", { name: "Card view", exact: true }).click();
+  await expect(page.locator(".course-board")).toHaveClass(/card-view/);
+  await page.getByRole("button", { name: "Configure Canvas" }).click();
+  await page
+    .getByRole("combobox", { name: "Chrome profile" })
+    .selectOption("Profile 1");
+  await page.getByRole("button", { name: "Save Canvas profile" }).click();
+  await expect(page.getByText("Chrome · Second demo profile")).toBeVisible();
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-cards.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Chrome profile" }),
+  ).toHaveValue("Profile 1");
+  const settings = (await page.locator(".settings-content").boundingBox())!;
+  const main = (await page.locator(".main-content").boundingBox())!;
+  expect(settings.width).toBeGreaterThan(main.width - 100);
+  await page
+    .getByRole("combobox", { name: "Chrome profile" })
+    .selectOption("Default");
+  await page.getByRole("button", { name: "Save Canvas profile" }).click();
+  await expect(page.getByText("Canvas profile saved.")).toBeVisible();
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Card view", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  await page.getByRole("button", { name: "Find course sources" }).click();
+  await page.getByRole("button", { name: "Select all", exact: true }).click();
+  await expect(page.getByText("2 selected · 0 ready")).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: "Select Video reference" }),
+  ).not.toBeChecked();
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Select category page", exact: true })
+    .click();
+  await expect(page.getByText("1 selected · 0 ready")).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: "Select Reading handout" }),
+  ).not.toBeChecked();
+  await page.getByRole("button", { name: "Sync selected" }).click();
+  await page.getByRole("button", { name: /Retrieval notes ready/ }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(
+    dialog.getByRole("heading", { name: "Assignment instructions" }),
+  ).toBeVisible();
+  await expect(dialog.locator("ol li")).toHaveCount(2);
+  await expect(dialog.getByRole("table")).toContainText("Criterion");
+  await expect(dialog.getByText("Text excerpt")).toHaveCount(0);
+  expect(
+    await dialog
+      .getByText("Centered text")
+      .evaluate((el) => getComputedStyle(el).textAlign),
+  ).toBe("center");
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-source-reading.png",
+    fullPage: true,
+  });
+  await page.keyboard.press("Escape");
+});
+
+test("Return shortcuts preserve newlines, respect IME and keep conversation controls/content aligned", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 1200 });
+  await page.goto("/#session=synthetic-launch");
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page
+    .locator(".local-client-row")
+    .filter({
+      has: page.getByRole("heading", { name: "Codex CLI", exact: true }),
+    })
+    .getByRole("button", { name: "Use existing login" })
+    .click();
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  let sends = 0;
+  page.on("request", (request) => {
+    if (request.url().endsWith("/chat")) sends++;
+  });
+  const prompt = page.getByRole("textbox", { name: "Ask a study question" });
+  await prompt.fill("First line");
+  await prompt.press("Enter");
+  await expect(prompt).toHaveValue("First line\n");
+  expect(sends).toBe(0);
+  await prompt.press("Control+Enter");
+  await expect(
+    page.getByRole("button", { name: "Save to notes" }),
+  ).toBeVisible();
+  expect(sends).toBe(1);
+  await page
+    .getByRole("combobox", { name: "Send shortcut" })
+    .selectOption("enter");
+  await prompt.fill("Second line");
+  await prompt.press("Meta+Enter");
+  await expect(prompt).toHaveValue("Second line\n");
+  await prompt.evaluate((element) =>
+    element.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        isComposing: true,
+        bubbles: true,
+      }),
+    ),
+  );
+  expect(sends).toBe(1);
+  await prompt.press("Enter");
+  await expect.poll(() => sends).toBe(2);
+  await expect(
+    page.getByRole("button", { name: "Send", exact: true }),
+  ).toBeVisible();
+  const provider = (await page
+    .getByRole("combobox", { name: "Provider", exact: true })
+    .boundingBox())!;
+  const history = (await page
+    .getByRole("combobox", { name: "Conversation history" })
+    .boundingBox())!;
+  expect(Math.abs(provider.y - history.y)).toBeLessThan(8);
+  const message = page.locator(".chat-message.assistant").last();
+  const body = (await message.locator(".study-markdown").boundingBox())!;
+  const box = (await message.boundingBox())!;
+  expect(Math.abs(body.width - box.width)).toBeLessThan(3);
+  await prompt.focus();
+  expect(await prompt.evaluate((el) => getComputedStyle(el).outlineColor)).toBe(
+    "rgb(0, 90, 156)",
+  );
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-chat-toolbar.png",
+    fullPage: true,
+  });
+  await page.reload();
+  await expect(
+    page.getByRole("combobox", { name: "Send shortcut" }),
+  ).toHaveValue("enter");
+});
+
+test("Studio Word/Excel choices send instructions and template, then offer real export routes", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1600, height: 1000 });
+  await page.goto("/#session=synthetic-launch");
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  await page.getByRole("button", { name: "Find course sources" }).click();
+  await page.getByRole("checkbox", { name: "Select Retrieval notes" }).check();
+  await page.getByRole("button", { name: "Sync selected" }).click();
+  await page.getByRole("button", { name: "Word", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: /Document template/ })
+    .selectOption("revision_outline");
+  await page
+    .getByRole("textbox", { name: "Instructions" })
+    .fill("Use Chinese and emphasize definitions.");
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-word-controls.png",
+    fullPage: true,
+  });
+  // Supply a synthetic provider and document response without a paid model call.
+  await page.route("**/api/providers", (route) =>
+    route.fulfill({ json: { providers: [syntheticProvider] } }),
+  );
+  await page.reload();
+  await page.getByRole("button", { name: "Word", exact: true }).click();
+  await page.getByRole("checkbox", { name: "Select Retrieval notes" }).check();
+  await page
+    .getByRole("combobox", { name: /Document template/ })
+    .selectOption("revision_outline");
+  await page
+    .getByRole("textbox", { name: "Instructions" })
+    .fill("Use Chinese and emphasize definitions.");
+  await page.route("**/artifacts/generate", async (route) => {
+    const payload = route.request().postDataJSON();
+    expect(payload.prompt).toBe("Use Chinese and emphasize definitions.");
+    const artifact = {
+      ...syntheticArtifact,
+      kind: payload.kind,
+      content:
+        payload.kind === "document"
+          ? {
+              title: "Retrieval practice",
+              template: payload.template,
+              sections: [
+                {
+                  heading: "Evidence",
+                  body: "Source-grounded text",
+                  citations: [chunkId],
+                },
+              ],
+            }
+          : {
+              title: "Retrieval practice",
+              columns: ["Concept", "Meaning"],
+              rows: [
+                {
+                  cells: ["Retrieval", "Evidence search"],
+                  citations: [chunkId],
+                },
+              ],
+            },
+    };
+    await route.fulfill({ json: artifact });
+  });
+  await page.getByRole("button", { name: "Generate material" }).click();
+  await expect(
+    page.getByRole("link", { name: "Word (.docx)" }),
+  ).toHaveAttribute("href", /format=docx&template=revision_outline/);
+  await expect(page.getByText("Source-grounded text")).toBeVisible();
+  await page.getByRole("button", { name: "Back to materials" }).click();
+  await page.getByRole("button", { name: "Excel", exact: true }).click();
+  await page.getByRole("button", { name: "Generate material" }).click();
+  await expect(page.locator(".studio-table")).toContainText("Evidence search");
+  await expect(
+    page.getByRole("link", { name: "Excel (.xlsx)" }),
+  ).toHaveAttribute("href", /format=xlsx/);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-excel-mobile.png",
     fullPage: true,
   });
 });

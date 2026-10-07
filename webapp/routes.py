@@ -23,9 +23,11 @@ from .providers import (
     ProviderError,
     validate_base_url,
 )
+from .services.canvas import CanvasServiceError
 from .services.interactions import InteractionService
 from .services.sources import SourceService
 from .services.study import StudyService, artifact_markdown
+from .source_preview import reading_text
 from .store import StudyStore
 
 
@@ -81,10 +83,14 @@ class ChatRequest(StrictModel):
 class GenerateRequest(StrictModel):
     provider_id: UUID
     source_ids: list[UUID] = Field(max_length=300)
-    kind: Literal["quiz", "flashcards", "study_guide"]
+    kind: Literal["quiz", "flashcards", "study_guide", "document", "spreadsheet"]
     topic: str = Field(default="", max_length=1000)
     count: int = Field(default=5, ge=1, le=20)
     difficulty: Literal["introductory", "intermediate", "advanced"] = "intermediate"
+    prompt: str = Field(default="", max_length=6000)
+    template: Literal[
+        "automatic", "study_notes", "revision_outline", "analysis_report"
+    ] = "automatic"
 
 
 class NoteRequest(StrictModel):
@@ -102,6 +108,10 @@ class ActionRequest(StrictModel):
 
 class Confirmation(StrictModel):
     approved: Literal[True]
+
+
+class ProfileSelection(StrictModel):
+    profile_id: str = Field(min_length=1, max_length=100)
 
 
 def register_study_routes(
@@ -133,6 +143,16 @@ def register_study_routes(
     app.state.study_store, app.state.sources, app.state.study = store, sources, study
     app.state.interactions = interactions
     router = APIRouter(prefix="/api")
+
+    @router.get("/canvas/profiles")
+    def profiles():
+        return canvas.profiles()
+
+    @router.put("/canvas/profile")
+    def select_profile(payload: ProfileSelection):
+        result = canvas.choose_profile(payload.profile_id)
+        interactions.cancel_all()
+        return result
 
     @app.exception_handler(ProviderError)
     @app.exception_handler(ParseError)
@@ -231,10 +251,17 @@ def register_study_routes(
         chunks = store.chunks(str(workspace_id), str(source_id))
         if offset < 0:
             raise HTTPException(422, "Invalid chunk offset.")
+        try:
+            display_html = sources.preview(workspace(workspace_id), row)
+        except CanvasServiceError:
+            # Previously indexed sources remain readable when Canvas is offline.
+            display_html = None
         return {
             "source": row,
             "chunks": chunks[offset : offset + 30],
             "total_chunks": len(chunks),
+            "display_html": display_html,
+            "display_text": reading_text(chunks),
         }
 
     @router.get("/workspaces/{workspace_id}/citations/{chunk_id}")
@@ -460,6 +487,8 @@ def register_study_routes(
             payload.topic,
             payload.count,
             payload.difficulty,
+            prompt=payload.prompt,
+            template=payload.template,
         )
 
     @router.get("/workspaces/{workspace_id}/artifacts")
@@ -489,10 +518,26 @@ def register_study_routes(
     def export_artifact(
         workspace_id: UUID,
         artifact_id: UUID,
-        format: Literal["json", "markdown"] = "json",
+        format: Literal["json", "markdown", "docx", "xlsx"] = "json",
+        template: Literal[
+            "automatic", "study_notes", "revision_outline", "analysis_report"
+        ] = "automatic",
     ):
         row = artifact(workspace_id, artifact_id)
-        filename = f"study-{artifact_id}." + ("json" if format == "json" else "md")
+        filename = (
+            f"study-{artifact_id}."
+            + {"json": "json", "markdown": "md", "docx": "docx", "xlsx": "xlsx"}[format]
+        )
+        if format in {"docx", "xlsx"}:
+            from .office_exports import excel_export, word_export
+
+            return Response(
+                word_export(row, template) if format == "docx" else excel_export(row),
+                media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                if format == "docx"
+                else "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
         content = (
             json.dumps(row, ensure_ascii=False, indent=2)
             if format == "json"
@@ -533,6 +578,8 @@ def register_study_routes(
                     "quiz": "questions",
                     "flashcards": "cards",
                     "study_guide": "sections",
+                    "document": "sections",
+                    "spreadsheet": "rows",
                 }[row["kind"]]
                 if payload.artifact_index >= len(row["content"][key]):
                     raise HTTPException(
@@ -546,7 +593,11 @@ def register_study_routes(
                 ]
                 row = {
                     **row,
-                    "content": {"title": row["title"] + " — excerpt", key: [item]},
+                    "content": {
+                        **row["content"],
+                        "title": row["title"] + " — excerpt",
+                        key: [item],
+                    },
                     "provenance": {
                         **row["provenance"],
                         "artifact_index": payload.artifact_index,

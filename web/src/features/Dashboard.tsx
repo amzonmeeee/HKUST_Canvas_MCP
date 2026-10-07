@@ -6,12 +6,33 @@ import {
   Search,
   FolderOpen,
   X,
+  List,
+  LayoutGrid,
+  Settings2,
 } from "lucide-react";
 import { api } from "../api";
 import { CanvasLink, EmptyState, ErrorNotice, Loading } from "../components";
+import { CanvasConfiguration } from "./CanvasConfiguration";
 import type { CanvasStatus, Course, Workspace } from "../types";
 
 export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
+  const [configuring, setConfiguring] = useState(false);
+  const [view, setView] = useState<"list" | "cards">(() => {
+    try {
+      return localStorage.getItem("canvas-workbench.dashboard-view") === "cards"
+        ? "cards"
+        : "list";
+    } catch {
+      return "list";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("canvas-workbench.dashboard-view", view);
+    } catch {
+      /* Optional preference. */
+    }
+  }, [view]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [workspaces, setWorkspaces] = useState<Workspace[]>([]);
   const [status, setStatus] = useState<CanvasStatus | null>(null);
@@ -130,7 +151,49 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         {status?.profile_name && (
           <span className="muted">Chrome · {status.profile_name}</span>
         )}
-        <CanvasLink />
+        <div className="connection-actions">
+          <button
+            className="text-button"
+            aria-expanded={configuring}
+            onClick={() => setConfiguring(!configuring)}
+          >
+            <Settings2 size={16} />
+            Configure Canvas
+          </button>
+          <CanvasLink />
+        </div>
+      </div>
+      {configuring && (
+        <section className="canvas-configuration">
+          <CanvasConfiguration
+            onChanged={() => {
+              setConfiguring(false);
+              void load();
+            }}
+          />
+        </section>
+      )}
+      <div
+        className="view-switch"
+        role="group"
+        aria-label="Course and workspace view"
+      >
+        <button
+          type="button"
+          aria-pressed={view === "list"}
+          onClick={() => setView("list")}
+        >
+          <List size={16} />
+          List view
+        </button>
+        <button
+          type="button"
+          aria-pressed={view === "cards"}
+          onClick={() => setView("cards")}
+        >
+          <LayoutGrid size={16} />
+          Card view
+        </button>
       </div>
       {status && !status.auth_verified && (
         <ErrorNotice message={status.message} retry={() => void load()} />
@@ -168,7 +231,9 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
             Try a course code, title or term.
           </EmptyState>
         ) : (
-          <div className="course-board">
+          <div
+            className={`course-board${view === "cards" ? " card-view" : ""}`}
+          >
             <div className="board-heading" aria-hidden="true">
               <span>Course</span>
               <span>Term</span>
@@ -292,7 +357,9 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
             workspace for your own projects.
           </EmptyState>
         ) : (
-          <div className="workspace-list">
+          <div
+            className={`workspace-list${view === "cards" ? " card-view" : ""}`}
+          >
             {workspaces.map((workspace) => (
               <button
                 className="workspace-row"

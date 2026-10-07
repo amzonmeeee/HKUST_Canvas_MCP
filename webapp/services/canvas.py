@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import os
+from pathlib import Path
 from threading import RLock
 
 from auth import get_auth_status
+from auth.chrome_cookies import list_chrome_profiles
 from auth.profiles import resolve_selected_chrome_profile
+from auth.settings import set_selected_profile
 from specs.registry import dispatch_tool_call
 from tools.common import canvas_client, reset_canvas_client
 
@@ -22,6 +26,47 @@ class CanvasService:
         self._lock = RLock()
 
     def status(self) -> dict:
+        with self._lock:
+            return self._status()
+
+    def profiles(self):
+        with self._lock:
+            name, path = resolve_selected_chrome_profile()
+            return {
+                "profiles": [
+                    {
+                        "id": Path(p.path).name,
+                        "name": p.name,
+                        "selected": str(Path(p.path)) == str(path)
+                        if path
+                        else p.name == name
+                        or (not name and Path(p.path).name == "Default"),
+                    }
+                    for p in list_chrome_profiles()
+                ]
+            }
+
+    def choose_profile(self, profile_id):
+        with self._lock:
+            profile = next(
+                (p for p in list_chrome_profiles() if Path(p.path).name == profile_id),
+                None,
+            )
+            if profile is None:
+                raise CanvasServiceError(
+                    "profile_not_found",
+                    "This Chrome profile is no longer available. Refresh the profile list.",
+                    404,
+                )
+            set_selected_profile(name=profile.name, path=profile.path)
+            # An explicit in-app choice supersedes this process's launch overrides.
+            os.environ.pop("CANVAS_CHROME_PROFILE", None)
+            os.environ.pop("CANVAS_CHROME_PROFILE_PATH", None)
+            reset_canvas_client()
+            self._profile_context = None
+            return {"profile_name": profile.name, "saved": True}
+
+    def _status(self) -> dict:
         try:
             result = get_auth_status()
         # Browser/keychain adapters raise platform-specific errors. Their raw

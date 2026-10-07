@@ -108,14 +108,28 @@ class FakeProvider:
             )
         elif key == "cards":
             item.update(front="Retrieval", back="Searching selected evidence.")
+        elif key == "rows":
+            item.update(cells=["Retrieval", "Searching selected evidence."])
         else:
             item.update(
                 heading="Retrieval", body="Use selected evidence to support answers."
             )
-        return {
+        result = {
             "title": "Synthetic study material",
             key: [dict(item) for _ in range(count)],
         }
+        if "columns" in schema["properties"]:
+            result["columns"] = ["Concept", "Explanation"]
+        if "template" in schema["properties"]:
+            import re
+
+            requested = re.search(r"Document template: (\w+)", messages[-1]["content"])[
+                1
+            ]
+            result["template"] = (
+                "study_notes" if requested == "automatic" else requested
+            )
+        return result
 
 
 @pytest.fixture
@@ -602,7 +616,9 @@ def test_chat_rejects_foreign_sources_and_unsupported_tools(setup):
     assert not fake.calls
 
 
-@pytest.mark.parametrize("kind", ["quiz", "flashcards", "study_guide"])
+@pytest.mark.parametrize(
+    "kind", ["quiz", "flashcards", "study_guide", "document", "spreadsheet"]
+)
 def test_artifact_contract_provenance_exports_and_saved_notes(setup, kind):
     client, _app, workspace, provider, _fake, *_ = setup
     source = upload_text(client, workspace)
@@ -1602,3 +1618,169 @@ def test_native_missing_login_is_actionable_without_account_details(setup, monke
     result = client.post("/api/providers/local/claude_code")
     assert result.status_code == 401
     assert result.json()["error"]["code"] == "cli_auth"
+
+
+@pytest.mark.parametrize(
+    "template", ["automatic", "study_notes", "revision_outline", "analysis_report"]
+)
+def test_word_generation_templates_prompt_and_real_office_exports(setup, template):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    client, _app, workspace, provider, fake, *_ = setup
+    source = upload_text(client, workspace)
+    base = f"/api/workspaces/{workspace['id']}"
+    response = client.post(
+        base + "/artifacts/generate",
+        json={
+            "provider_id": provider["id"],
+            "source_ids": [source["id"]],
+            "kind": "document",
+            "count": 2,
+            "template": template,
+            "prompt": "Use Traditional Chinese and compare the concepts.",
+        },
+    )
+    assert response.status_code == 201, response.text
+    artifact = response.json()
+    assert (
+        artifact["provenance"]["prompt"]
+        == "Use Traditional Chinese and compare the concepts."
+    )
+    assert artifact["content"]["template"] == (
+        "study_notes" if template == "automatic" else template
+    )
+    assert "Use Traditional Chinese" in fake.calls[-1][0][-1]["content"]
+    url = base + f"/artifacts/{artifact['id']}/export"
+    word = client.get(url + "?format=docx")
+    assert word.status_code == 200 and word.content.startswith(b"PK")
+    assert word.headers["content-type"].startswith(
+        "application/vnd.openxmlformats-officedocument.wordprocessingml"
+    )
+    doc = Document(BytesIO(word.content))
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert artifact["title"] in text and "Sources" in text and source["title"] in text
+    assert doc.core_properties.author == "Canvas Workbench"
+    excel = client.get(url + "?format=xlsx")
+    book = load_workbook(BytesIO(excel.content))
+    assert book.sheetnames == ["Study material", "Sources", "Generation details"]
+    assert book.active.freeze_panes == "A2"
+    assert book.active.max_row == 3 and book["Sources"].max_row == 2
+    assert all(cell.data_type != "f" for sheet in book for row in sheet for cell in row)
+    assert client.get(url + "?format=docx&template=invalid").status_code == 422
+
+
+def test_excel_generation_rejects_misaligned_rows_and_exports_formula_like_text_safely(
+    setup,
+):
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    client, app, workspace, provider, fake, *_ = setup
+    source = upload_text(client, workspace)
+    chunk = app.state.study_store.chunks(workspace["id"], source["id"])[0]["id"]
+    fake.structured = {
+        "title": "Synthetic evidence table",
+        "columns": ["Concept", "Explanation"],
+        "rows": [
+            {
+                "cells": ['=HYPERLINK("https://example.invalid")', "Evidence"],
+                "citations": [chunk],
+            }
+        ],
+    }
+    base = f"/api/workspaces/{workspace['id']}"
+    payload = {
+        "provider_id": provider["id"],
+        "source_ids": [source["id"]],
+        "kind": "spreadsheet",
+        "count": 1,
+    }
+    response = client.post(base + "/artifacts/generate", json=payload)
+    assert response.status_code == 201, response.text
+    artifact = response.json()
+    response = client.get(base + f"/artifacts/{artifact['id']}/export?format=xlsx")
+    book = load_workbook(BytesIO(response.content))
+    assert (
+        book.active["A2"].value.startswith("=HYPERLINK")
+        and book.active["A2"].data_type == "s"
+    )
+    fake.structured["rows"][0]["cells"] = ["Only one cell"]
+    response = client.post(base + "/artifacts/generate", json=payload)
+    assert (
+        response.status_code == 422
+        and response.json()["error"]["code"] == "invalid_table"
+    )
+    assert len(client.get(base + "/artifacts").json()["artifacts"]) == 1
+    note = client.post(
+        base + "/notes",
+        json={
+            "title": "Table excerpt",
+            "content": "",
+            "artifact_id": artifact["id"],
+            "artifact_index": 0,
+        },
+    )
+    assert note.status_code == 201 and "Concept" in note.json()["content"]
+
+
+def test_source_preview_preserves_canvas_document_structure_without_active_content(
+    setup,
+):
+    from webapp.source_preview import canvas_html, reading_text
+
+    html = '<h2>Assignment instructions</h2><p>A <strong>whole</strong> paragraph.</p><ol><li>First</li><li>Second</li></ol><table><tr><th>Criterion</th><td>Evidence</td></tr></table><p style="text-align:center;background-image:url(https://example.invalid)">Centered</p><script>secret()</script><svg onload="secret()"></svg><img src="https://example.invalid/track" alt="Figure"><a href="javascript:alert(1)">unsafe</a><a href="/courses/101">Course</a>'
+    result = canvas_html(html)
+    assert "<p>A <strong>whole</strong> paragraph.</p>" in result
+    assert "<ol><li>First</li><li>Second</li></ol>" in result and "<table>" in result
+    assert "text-align:center" in result
+    assert all(
+        value not in result
+        for value in (
+            "<script",
+            "<svg",
+            "<img",
+            "onload",
+            "secret()",
+            "javascript:",
+            "background-image",
+            "https://example.invalid/track",
+        )
+    )
+    assert 'href="https://canvas.ust.hk/courses/101"' in result
+    chunks = chunks_for_sections([("word " * 1000, {"heading": "Long section"})])
+    text = reading_text(chunks)
+    assert text.count("word") == 1000
+    client, app, _workspace, _provider, _fake, _secrets, canvas = setup
+    course = client.post(
+        "/api/workspaces", json={"kind": "canvas_course", "canvas_course_id": "101"}
+    ).json()
+    source = app.state.study_store.upsert_source(
+        course["id"],
+        {
+            "source_key": "assignment:11",
+            "kind": "assignment",
+            "canvas_object_id": "11",
+            "title": "Synthetic assignment",
+            "status": "ready",
+        },
+    )
+    app.state.study_store.index(
+        source, [{"text": "whole paragraph", "locator": {}}], "test-checksum"
+    )
+    canvas.client_call.return_value = {"description": html}
+    url = f"/api/workspaces/{course['id']}/sources/{source['id']}"
+    response = client.get(url)
+    assert response.status_code == 200 and response.json()["display_html"] == result
+    canvas.client_call.reset_mock()
+    assert client.get(url).json()["display_html"] == result
+    canvas.client_call.assert_not_called()
+    path = app.state.sources.folder(source["id"]) / "canvas-preview-v1.html"
+    assert path.stat().st_mode & 0o777 == 0o600
+    path.unlink()
+    canvas.client_call.side_effect = CanvasServiceError("canvas_unavailable", "Offline")
+    fallback = client.get(url)
+    assert fallback.status_code == 200 and fallback.json()["display_html"] is None
+    assert fallback.json()["display_text"] == "whole paragraph"

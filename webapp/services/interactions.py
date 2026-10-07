@@ -225,3 +225,7 @@ class InteractionService:
                 self._pending.pop(identifier)
                 return True
             return False
+
+    def cancel_all(self):
+        with self._lock:
+            self._pending.clear()

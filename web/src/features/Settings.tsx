@@ -4,6 +4,7 @@ import { api } from "../api";
 import { CanvasLink, ErrorNotice, Loading } from "../components";
 import type { Settings } from "../types";
 import { ProviderSettings } from "./Providers";
+import { CanvasConfiguration } from "./CanvasConfiguration";
 import { LocalClients } from "./LocalClients";
 
 export function SettingsPage() {
@@ -50,22 +51,7 @@ export function SettingsPage() {
               The workbench shares the Chrome session and profile selection used
               by the Canvas CLI and MCP server.
             </p>
-            <dl className="settings-facts">
-              <div>
-                <dt>Canvas</dt>
-                <dd>canvas.ust.hk</dd>
-              </div>
-              <div>
-                <dt>Chrome profile</dt>
-                <dd>{settings.profile_name || "Default profile resolution"}</dd>
-              </div>
-              <div>
-                <dt>Change profile</dt>
-                <dd>
-                  <code>canvas settings choose-profile "Profile name"</code>
-                </dd>
-              </div>
-            </dl>
+            <CanvasConfiguration onChanged={() => void load()} />
             <CanvasLink />
             <p className="muted">
               Sign in through Chrome if your session expires, then refresh the
