@@ -87,6 +87,12 @@ def migrate(db):
                 (json.dumps(scope), row["id"]),
             )
         db.execute("PRAGMA user_version=4")
+        version = 4
+    if version < 5:
+        db.execute(
+            "ALTER TABLE workspaces ADD COLUMN archived INTEGER NOT NULL DEFAULT 0"
+        )
+        db.execute("PRAGMA user_version=5")
 
 
 JSON_FIELDS = {
@@ -346,6 +352,38 @@ class StudyStore:
                 (identifier, workspace_id, title[:160], stamp, stamp),
             )
         return self.conversation(workspace_id, identifier)
+
+    def save_conversation_snapshot(self, conversation):
+        """Atomically persist a temporary conversation after an explicit save."""
+        with closing(self.repository._connect()) as db, db:
+            db.execute(
+                "INSERT INTO conversations VALUES(?,?,?,?,?)",
+                (
+                    conversation["id"],
+                    conversation["workspace_id"],
+                    conversation["title"],
+                    conversation["created_at"],
+                    now(),
+                ),
+            )
+            for message in conversation["messages"]:
+                db.execute(
+                    "INSERT INTO messages(id,conversation_id,role,content,status,citations,provider_id,model,created_at,source_ids,live_tools) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                    (
+                        message["id"],
+                        conversation["id"],
+                        message["role"],
+                        message["content"],
+                        message["status"],
+                        json.dumps(message["citations"]),
+                        message["provider_id"],
+                        message["model"],
+                        message["created_at"],
+                        json.dumps(message["source_ids"]),
+                        int(message["live_tools"]),
+                    ),
+                )
+        return self.conversation(conversation["workspace_id"], conversation["id"])
 
     def add_message(
         self,

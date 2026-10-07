@@ -49,6 +49,7 @@ class WorkspaceUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str | None = Field(default=None, min_length=1, max_length=160)
     description: str | None = Field(default=None, max_length=2000)
+    archived: bool = False
 
     @field_validator("title", "description")
     @classmethod

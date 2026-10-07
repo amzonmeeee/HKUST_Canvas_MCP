@@ -45,6 +45,7 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
   const [description, setDescription] = useState("");
   const [busy, setBusy] = useState("");
   const [actionError, setActionError] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const [truncated, setTruncated] = useState(false);
 
   async function load() {
@@ -289,7 +290,10 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         <div className="section-header">
           <div>
             <h2 id="workspaces-heading">
-              My workspaces <span className="count">{workspaces.length}</span>
+              My workspaces{" "}
+              <span className="count">
+                {workspaces.filter((w) => !!w.archived === showArchived).length}
+              </span>
             </h2>
             <p>
               Continue with your sources, conversations and study materials.
@@ -309,6 +313,24 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
               <Plus size={16} aria-hidden="true" />
             )}
             {creating ? "Close form" : "New workspace"}
+          </button>
+        </div>
+        <div
+          className="workspace-filter view-switch"
+          role="group"
+          aria-label="Workspace archive"
+        >
+          <button
+            aria-pressed={!showArchived}
+            onClick={() => setShowArchived(false)}
+          >
+            Active
+          </button>
+          <button
+            aria-pressed={showArchived}
+            onClick={() => setShowArchived(true)}
+          >
+            Archived ({workspaces.filter((w) => w.archived).length})
           </button>
         </div>
         {creating && (
@@ -349,36 +371,48 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         )}
         {localError ? (
           <ErrorNotice message={localError} retry={() => void load()} />
-        ) : loading && !workspaces.length ? (
+        ) : loading &&
+          !workspaces.filter((w) => !!w.archived === showArchived).length ? (
           <Loading>Loading workspaces…</Loading>
-        ) : !workspaces.length ? (
-          <EmptyState title="A place for each course—and everything else.">
-            Opening a Canvas course saves a workspace here. Create a custom
-            workspace for your own projects.
+        ) : !workspaces.filter((w) => !!w.archived === showArchived).length ? (
+          <EmptyState
+            title={
+              showArchived
+                ? "No archived workspaces"
+                : "A place for each course—and everything else."
+            }
+          >
+            {showArchived
+              ? "Archive a workspace to hide it from the active list while keeping its sources and chats."
+              : "Opening a Canvas course saves a workspace here. Create a custom workspace for your own projects."}
           </EmptyState>
         ) : (
           <div
             className={`workspace-list${view === "cards" ? " card-view" : ""}`}
           >
-            {workspaces.map((workspace) => (
-              <button
-                className="workspace-row"
-                key={workspace.id}
-                onClick={() => navigate(`/workspace/${workspace.id}`)}
-              >
-                <FolderOpen size={21} aria-hidden="true" />
-                <span>
-                  <strong>{workspace.title}</strong>
+            {workspaces
+              .filter((w) => !!w.archived === showArchived)
+              .map((workspace) => (
+                <button
+                  className="workspace-row"
+                  key={workspace.id}
+                  onClick={() => navigate(`/workspace/${workspace.id}`)}
+                >
+                  <FolderOpen size={21} aria-hidden="true" />
                   <span>
-                    {workspace.kind === "custom"
-                      ? "Custom workspace"
-                      : workspace.course_code || "Canvas course"}
-                    {workspace.description ? ` · ${workspace.description}` : ""}
+                    <strong>{workspace.title}</strong>
+                    <span>
+                      {workspace.kind === "custom"
+                        ? "Custom workspace"
+                        : workspace.course_code || "Canvas course"}
+                      {workspace.description
+                        ? ` · ${workspace.description}`
+                        : ""}
+                    </span>
                   </span>
-                </span>
-                <ArrowRight size={17} aria-hidden="true" />
-              </button>
-            ))}
+                  <ArrowRight size={17} aria-hidden="true" />
+                </button>
+              ))}
           </div>
         )}
       </section>

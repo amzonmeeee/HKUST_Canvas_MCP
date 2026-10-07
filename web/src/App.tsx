@@ -1,6 +1,6 @@
+import { Logo } from "./Logo";
 import { useEffect, useState } from "react";
 import {
-  BookOpen,
   LayoutDashboard,
   Settings as SettingsIcon,
   ArrowLeft,
@@ -57,7 +57,7 @@ export function App() {
           onClick={() => navigate("/")}
           aria-label="HKUST Canvas Workbench home"
         >
-          <BookOpen size={25} aria-hidden="true" />
+          <Logo />
           <span>
             Canvas
             <br />

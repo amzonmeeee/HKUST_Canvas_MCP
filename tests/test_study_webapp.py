@@ -108,6 +108,27 @@ class FakeProvider:
             )
         elif key == "cards":
             item.update(front="Retrieval", back="Searching selected evidence.")
+        elif key == "nodes":
+            item.update(
+                id="node-0",
+                parent_id=None,
+                label="Retrieval",
+                body="Searching selected evidence.",
+            )
+        elif key == "slides":
+            item.update(
+                heading="Evidence",
+                body="Selected evidence grounds answers.",
+                bullets=["Search selected sources", "Cite the evidence"],
+                notes="Explain how retrieval selects relevant excerpts.",
+            )
+        elif (
+            key == "sections"
+            and "stat" in schema["properties"][key]["items"]["properties"]
+        ):
+            item.update(
+                heading="Evidence", body="Selected evidence grounds answers.", stat=""
+            )
         elif key == "rows":
             item.update(cells=["Retrieval", "Searching selected evidence."])
         else:
@@ -118,6 +139,11 @@ class FakeProvider:
             "title": "Synthetic study material",
             key: [dict(item) for _ in range(count)],
         }
+        if key == "nodes":
+            result[key] = [
+                {**item, "id": f"node-{i}", "parent_id": None if i == 0 else "node-0"}
+                for i in range(count)
+            ]
         if "columns" in schema["properties"]:
             result["columns"] = ["Concept", "Explanation"]
         if "template" in schema["properties"]:
@@ -1784,3 +1810,250 @@ def test_source_preview_preserves_canvas_document_structure_without_active_conte
     fallback = client.get(url)
     assert fallback.status_code == 200 and fallback.json()["display_html"] is None
     assert fallback.json()["display_text"] == "whole paragraph"
+
+
+def test_temporary_chat_stays_out_of_database_until_saved(setup):
+    client, app, workspace, provider, fake, *_ = setup
+    base = f"/api/workspaces/{workspace['id']}"
+    payload = {
+        "provider_id": provider["id"],
+        "message": "Explain evidence",
+        "temporary": True,
+    }
+    events = stream_events(client.post(base + "/chat", json=payload))
+    identifier = next(
+        e["conversation_id"] for e in events if e["type"] == "conversation"
+    )
+    assert client.get(base + "/conversations").json()["conversations"] == []
+    with app.state.repository._connect() as db:
+        assert db.execute("SELECT count(*) FROM messages").fetchone()[0] == 0
+    transcript = client.get(base + f"/conversations/{identifier}?temporary=true").json()
+    assert len(transcript["messages"]) == 2
+    payload.update(conversation_id=identifier, message="Explain further")
+    stream_events(client.post(base + "/chat", json=payload))
+    assert fake.calls[-1][0][2]["content"] == "Explain evidence"
+    other = client.post("/api/workspaces", json={"title": "Other workspace"}).json()
+    assert (
+        client.post(
+            f"/api/workspaces/{other['id']}/temporary-conversations/{identifier}/save"
+        ).status_code
+        == 404
+    )
+    app.state.study._running.add(identifier)
+    assert (
+        client.post(base + f"/temporary-conversations/{identifier}/save").status_code
+        == 409
+    )
+    app.state.study._running.remove(identifier)
+    saved = client.post(base + f"/temporary-conversations/{identifier}/save")
+    assert saved.status_code == 200 and len(saved.json()["messages"]) == 4
+    assert (
+        client.get(base + f"/conversations/{identifier}?temporary=true").status_code
+        == 404
+    )
+    assert (
+        client.post(base + f"/temporary-conversations/{identifier}/save").status_code
+        == 404
+    )
+    payload.update(temporary=False, message="Continue the saved chat")
+    stream_events(client.post(base + "/chat", json=payload))
+    assert (
+        len(client.get(base + f"/conversations/{identifier}").json()["messages"]) == 6
+    )
+
+
+def test_temporary_discard_expiry_and_source_scope(setup, monkeypatch):
+    client, app, workspace, provider, *_ = setup
+    base = f"/api/workspaces/{workspace['id']}"
+    events = stream_events(
+        client.post(
+            base + "/chat",
+            json={
+                "provider_id": provider["id"],
+                "message": "Discard this",
+                "temporary": True,
+            },
+        )
+    )
+    identifier = events[0]["conversation_id"]
+    assert (
+        client.delete(base + f"/conversations/{identifier}?temporary=true").status_code
+        == 204
+    )
+    assert (
+        client.get(base + f"/conversations/{identifier}?temporary=true").status_code
+        == 404
+    )
+    assert client.get(base + "/conversations").json()["conversations"] == []
+    memory = app.state.study.temporary
+    row = memory.create_conversation(workspace["id"], "Expiry")
+    original = __import__("time").monotonic()
+    monkeypatch.setattr("webapp.temporary_chats.monotonic", lambda: original + 5 * 3600)
+    assert memory.conversation(workspace["id"], row["id"]) is None
+    assert (
+        client.post(
+            base + "/chat",
+            json={
+                "provider_id": provider["id"],
+                "message": "Forbidden source",
+                "temporary": True,
+                "source_ids": [str(uuid4())],
+            },
+        ).status_code
+        == 422
+    )
+
+
+@pytest.mark.parametrize(
+    "kind,format", [("mindmap", "svg"), ("slides", "pptx"), ("infographic", "svg")]
+)
+def test_visual_material_generation_exports_and_provenance(setup, kind, format):
+    import xml.etree.ElementTree as ET
+    from io import BytesIO
+
+    from openpyxl import load_workbook
+
+    client, _, workspace, provider, fake, *_ = setup
+    source = upload_text(client, workspace)
+    base = f"/api/workspaces/{workspace['id']}"
+    response = client.post(
+        base + "/artifacts/generate",
+        json={
+            "provider_id": provider["id"],
+            "source_ids": [source["id"]],
+            "kind": kind,
+            "count": 3,
+            "language": "zh-Hant",
+            "orientation": "portrait",
+            "visual_style": "notebook",
+            "slide_format": "presenter",
+            "prompt": "Explain the concepts clearly.",
+        },
+    )
+    assert response.status_code == 201, response.text
+    artifact = response.json()
+    assert artifact["provenance"]["language"] == "zh-Hant"
+    assert artifact["provenance"]["orientation"] == "portrait"
+    assert "Language: zh-Hant" in fake.calls[-1][0][-1]["content"]
+    exported = client.get(base + f"/artifacts/{artifact['id']}/export?format={format}")
+    assert exported.status_code == 200
+    if format == "svg":
+        root = ET.fromstring(exported.content)
+        assert root.tag.endswith("svg")
+        assert "Sources" in "".join(root.itertext())
+    else:
+        deck = Presentation(BytesIO(exported.content))
+        assert len(deck.slides) == 4
+        assert (
+            "Explain how retrieval" in deck.slides[0].notes_slide.notes_text_frame.text
+        )
+        assert deck.slide_width > deck.slide_height
+    assert Document(
+        BytesIO(
+            client.get(base + f"/artifacts/{artifact['id']}/export?format=docx").content
+        )
+    ).paragraphs
+    assert load_workbook(
+        BytesIO(
+            client.get(base + f"/artifacts/{artifact['id']}/export?format=xlsx").content
+        )
+    ).sheetnames == ["Study material", "Sources", "Generation details"]
+    note = client.post(
+        base + "/notes",
+        json={"title": "Saved visual", "content": "", "artifact_id": artifact["id"]},
+    )
+    assert note.status_code == 201
+    assert (
+        client.get(
+            base
+            + f"/artifacts/{artifact['id']}/export?format={'svg' if kind == 'slides' else 'pptx'}"
+        ).status_code
+        == 422
+    )
+
+
+@pytest.mark.parametrize(
+    "parents", [[None, "node-1"], ["node-1", "node-0"], [None, "missing"]]
+)
+def test_generated_mindmap_rejects_bad_relationships(setup, parents):
+    client, _, workspace, provider, fake, *_ = setup
+    source = upload_text(client, workspace)
+    chunk = client.get(
+        f"/api/workspaces/{workspace['id']}/sources/{source['id']}"
+    ).json()["chunks"][0]["id"]
+    fake.structured = {
+        "title": "Invalid map",
+        "nodes": [
+            {
+                "id": f"node-{i}",
+                "parent_id": parent,
+                "label": "Node",
+                "body": "Explanation",
+                "citations": [chunk],
+            }
+            for i, parent in enumerate(parents)
+        ],
+    }
+    response = client.post(
+        f"/api/workspaces/{workspace['id']}/artifacts/generate",
+        json={
+            "provider_id": provider["id"],
+            "source_ids": [source["id"]],
+            "kind": "mindmap",
+            "count": 2,
+        },
+    )
+    assert (
+        response.status_code == 422
+        and response.json()["error"]["code"] == "invalid_mindmap"
+    )
+    assert (
+        client.get(f"/api/workspaces/{workspace['id']}/artifacts").json()["artifacts"]
+        == []
+    )
+
+
+def test_vector_export_escapes_model_markup_and_wraps_chinese():
+    import xml.etree.ElementTree as ET
+
+    from webapp.visual_exports import svg_export, wrap
+
+    value = '<script>alert("test")</script>'
+    artifact = {
+        "kind": "infographic",
+        "title": value,
+        "content": {
+            "sections": [
+                {"heading": value, "body": "中文說明" * 40, "stat": "", "citations": []}
+            ]
+        },
+        "provenance": {"citations": [], "orientation": "portrait"},
+    }
+    root = ET.fromstring(svg_export(artifact))
+    assert not root.findall(".//{http://www.w3.org/2000/svg}script")
+    assert value in "".join(root.itertext())
+    assert wrap("中文說明", 4) == ["中文", "說明"]
+
+
+def test_temporary_failure_retains_partial_text_without_claiming_persistence(setup):
+    client, app, workspace, provider, fake, *_ = setup
+    fake.failure = RuntimeError("Synthetic internal exception")
+    events = stream_events(
+        client.post(
+            f"/api/workspaces/{workspace['id']}/chat",
+            json={
+                "provider_id": provider["id"],
+                "message": "Test partial response",
+                "temporary": True,
+            },
+        )
+    )
+    error = next(e for e in events if e["type"] == "error")
+    assert (
+        "temporary chat" in error["message"] and "saved locally" not in error["message"]
+    )
+    identifier = events[0]["conversation_id"]
+    row = app.state.study.temporary.conversation(workspace["id"], identifier)
+    assert row["messages"][-1]["content"] == "Synthetic answer."
+    assert row["messages"][-1]["status"] == "failed"
+    assert not app.state.study_store.conversations(workspace["id"])

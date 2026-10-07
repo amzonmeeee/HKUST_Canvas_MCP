@@ -69,6 +69,9 @@ class StudyService:
         )
         self._running = set()
         self._lock = Lock()
+        from ..temporary_chats import TemporaryChats
+
+        self.temporary = TemporaryChats()
 
     def scope(self, workspace_id, source_ids):
         if len(source_ids) > 300 or len(source_ids) != len(set(source_ids)):
@@ -83,12 +86,23 @@ class StudyService:
                     "A selected source does not belong to this workspace.",
                     422,
                 )
+
             if source["status"] != "ready":
                 raise ProviderError(
                     "source_not_ready",
                     "Sync selected sources before using them with AI.",
                     422,
                 )
+
+    def save_temporary(self, workspace_id, identifier):
+        with self._lock:
+            if identifier in self._running:
+                raise ProviderError(
+                    "conversation_busy",
+                    "Stop the response before saving this chat.",
+                    409,
+                )
+            return self.temporary.save(self.store, workspace_id, identifier)
 
     def prepare_chat(
         self,
@@ -98,6 +112,7 @@ class StudyService:
         message,
         conversation_id=None,
         live_tools=False,
+        temporary=False,
     ):
         self.scope(workspace["id"], source_ids)
         config = self.store.provider(provider_id)
@@ -112,10 +127,11 @@ class StudyService:
                 "This provider has no native tools. Use the explicit Live Canvas actions instead.",
                 422,
             )
+        chat_store = self.temporary if temporary else self.store
         conversation = (
-            self.store.conversation(workspace["id"], conversation_id)
+            chat_store.conversation(workspace["id"], conversation_id)
             if conversation_id
-            else self.store.create_conversation(workspace["id"], message)
+            else chat_store.create_conversation(workspace["id"], message)
         )
         if conversation is None:
             raise ProviderError(
@@ -131,6 +147,12 @@ class StudyService:
                     409,
                 )
             self._running.add(conversation["id"])
+        if temporary and len(conversation["messages"]) >= 50:
+            with self._lock:
+                self._running.discard(conversation["id"])
+            raise ProviderError(
+                "temporary_limit", "Save this chat or start a new temporary chat.", 422
+            )
         return {
             "workspace": workspace,
             "config": config,
@@ -139,6 +161,8 @@ class StudyService:
             "source_ids": source_ids,
             "message": message,
             "live_tools": live_tools,
+            "chat_store": chat_store,
+            "temporary": temporary,
         }
 
     async def chat(self, prepared):
@@ -164,14 +188,18 @@ class StudyService:
                         {"role": item["role"], "content": item["content"][-6000:]}
                     )
             messages.append({"role": "user", "content": message})
-            self.store.add_message(
+            prepared["chat_store"].add_message(
                 conversation["id"],
                 "user",
                 message,
                 source_ids=source_ids,
                 live_tools=prepared["live_tools"],
             )
-            yield {"type": "conversation", "conversation_id": conversation["id"]}
+            yield {
+                "type": "conversation",
+                "conversation_id": conversation["id"],
+                "temporary": prepared["temporary"],
+            }
             yield {
                 "type": "context",
                 "chunks": [citation(c) for c in chunks],
@@ -274,7 +302,7 @@ class StudyService:
             if invalid:
                 yield {
                     "type": "warning",
-                    "message": "Unverified citations were removed from the saved answer.",
+                    "message": "Unverified citations were removed from the answer.",
                 }
             if source_ids and not chunks:
                 yield {
@@ -293,7 +321,9 @@ class StudyService:
             yield {
                 "type": "error",
                 "code": "generation_failed",
-                "message": "Generation failed. Your partial answer was saved locally.",
+                "message": "Generation failed. Partial text stays in this temporary chat."
+                if prepared["temporary"]
+                else "Generation failed. Your partial answer was saved locally.",
             }
         finally:
             # Validate partial citations as well; save on disconnect rather than losing the answer.
@@ -301,7 +331,7 @@ class StudyService:
                 content, locals().get("chunks", [])
             )
             try:
-                self.store.add_message(
+                prepared["chat_store"].add_message(
                     conversation["id"],
                     "assistant",
                     content,
@@ -327,6 +357,10 @@ class StudyService:
         *,
         prompt="",
         template="automatic",
+        language="automatic",
+        orientation="landscape",
+        visual_style="automatic",
+        slide_format="detailed",
     ):
         self.scope(workspace["id"], source_ids)
         if not source_ids:
@@ -347,6 +381,10 @@ class StudyService:
                 "No source excerpts match this topic. Broaden the topic or select different sources.",
                 422,
             )
+        if kind == "infographic" and count > 6:
+            raise ProviderError(
+                "invalid_count", "Choose up to six infographic sections.", 422
+            )
         schema = artifact_schema(kind, count)
         messages = [
             {
@@ -361,7 +399,7 @@ class StudyService:
             {"role": "system", "content": context_prompt(chunks)},
             {
                 "role": "user",
-                "content": f"Create {count} {kind} items at {difficulty} difficulty. Topic: {topic or 'the selected source excerpts'}. Use the language of these sources unless the topic requests another language. Ground every explanation in the supplied excerpts.\nDocument template: {template}.\nAdditional user instructions: {prompt or 'None'}",
+                "content": f"Create {count} {kind} items at {difficulty} difficulty. Topic: {topic or 'the selected source excerpts'}. Language: {language} (automatic means source language unless instructions request otherwise). Ground every explanation in the supplied excerpts.\nDocument template: {template}.\nPresentation format: {slide_format}. Orientation: {orientation}. Visual style: {visual_style}.\nAdditional user instructions: {prompt or 'None'}",
             },
         ]
         provider = self.provider_factory(config)
@@ -385,9 +423,30 @@ class StudyService:
                 "study_guide": "sections",
                 "document": "sections",
                 "spreadsheet": "rows",
+                "mindmap": "nodes",
+                "slides": "slides",
+                "infographic": "sections",
             }[kind]
         ]
         used = set()
+        if kind == "mindmap":
+            parents = {item["id"]: item["parent_id"] for item in items}
+            valid_tree = len(parents) == len(items)
+            for identifier in parents:
+                seen = set()
+                current = identifier
+                while current is not None:
+                    if current in seen or current not in parents:
+                        valid_tree = False
+                        break
+                    seen.add(current)
+                    current = parents[current]
+            if not valid_tree:
+                raise ProviderError(
+                    "invalid_mindmap",
+                    "The generated map contains duplicate, missing or cyclic connections. Try again.",
+                    422,
+                )
         if (
             kind == "document"
             and template != "automatic"
@@ -427,6 +486,10 @@ class StudyService:
             "topic": topic,
             "count": count,
             "prompt": prompt,
+            "language": language,
+            "orientation": orientation,
+            "visual_style": visual_style,
+            "slide_format": slide_format,
             "template": result.get("template", template)
             if kind == "document"
             else None,
@@ -486,10 +549,52 @@ def artifact_schema(kind, count):
                 "citations": citations,
             },
         )
+    elif kind == "mindmap":
+        key, properties = (
+            "nodes",
+            {
+                "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 40,
+                    "pattern": "^[A-Za-z0-9_-]+$",
+                },
+                "parent_id": {"type": ["string", "null"], "maxLength": 40},
+                "label": {"type": "string", "minLength": 1, "maxLength": 100},
+                "body": {"type": "string", "minLength": 1, "maxLength": 800},
+                "citations": citations,
+            },
+        )
+    elif kind == "slides":
+        key, properties = (
+            "slides",
+            {
+                "heading": {"type": "string", "minLength": 1, "maxLength": 100},
+                "body": {"type": "string", "maxLength": 900},
+                "bullets": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 6,
+                    "items": {"type": "string", "minLength": 1, "maxLength": 160},
+                },
+                "notes": {"type": "string", "maxLength": 6000},
+                "citations": citations,
+            },
+        )
+    elif kind == "infographic":
+        key, properties = (
+            "sections",
+            {
+                "heading": {"type": "string", "minLength": 1, "maxLength": 80},
+                "body": {"type": "string", "minLength": 1, "maxLength": 280},
+                "stat": {"type": "string", "maxLength": 60},
+                "citations": citations,
+            },
+        )
     else:
         raise ProviderError(
             "unsupported_artifact",
-            "Choose quiz, flashcards, study guide, Word or Excel.",
+            "Choose a supported Study Studio material.",
             422,
         )
     schema = {
@@ -569,12 +674,32 @@ def artifact_markdown(artifact):
             for row in content["rows"]
         ]
         lines.append("")
+    elif artifact["kind"] == "mindmap":
+        for item in content["nodes"]:
+            lines += [
+                "## " + item["label"],
+                "Parent: " + (item["parent_id"] or content["title"]),
+                item["body"],
+                " ".join(f"[cite:{c}]" for c in item["citations"]),
+                "",
+            ]
+    elif artifact["kind"] == "slides":
+        for item in content["slides"]:
+            lines += [
+                "## " + item["heading"],
+                item["body"],
+                *["- " + b for b in item["bullets"]],
+                "Speaker notes: " + item["notes"],
+                " ".join(f"[cite:{c}]" for c in item["citations"]),
+                "",
+            ]
     else:
         for item in content["sections"]:
             lines += [
                 "## " + item["heading"],
                 "",
-                item["body"],
+                (item.get("stat", "") + "\n" if item.get("stat") else "")
+                + item["body"],
                 " ".join(f"[cite:{c}]" for c in item["citations"]),
                 "",
             ]

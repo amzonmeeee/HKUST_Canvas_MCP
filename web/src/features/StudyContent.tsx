@@ -118,6 +118,9 @@ export function StudyMarkdown({
               [Image omitted; open the source to view it]
             </span>
           ),
+          // Model-inserted hard line breaks in prose must follow the panel width.
+          // Code and user prompts keep their original whitespace separately.
+          br: () => <> </>,
         }}
       >
         {rendered}

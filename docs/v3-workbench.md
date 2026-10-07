@@ -13,7 +13,7 @@ The feature branch extends `canvas web` into a study workspace while retaining t
 | Configurable providers and streaming | `webapp/providers.py`, `webapp/routes.py`, `web/src/features/Providers.tsx` | OpenAI Responses, Anthropic Messages and compatible Chat Completions stream/nonstream/tool/schema contracts |
 | Native CLI providers and desktop setup | `webapp/native_providers.py`, `webapp/local_clients.py`, `web/src/features/LocalClients.tsx` | Codex/Claude Code login, ephemeral text-only inference, cancellation, native schema validation, safe desktop MCP configuration merge |
 | Citation-aware chat and persisted history | `webapp/services/study.py`, `web/src/features/Chat.tsx` | Selected-source context, scope-aware history, SSE, partial failures, valid IDs and citation inspection |
-| Quiz, flashcards, study guide, Word and Excel | `webapp/services/study.py`, `webapp/office_exports.py`, `web/src/features/Studio.tsx` | Schemas, instructions/templates, provenance/citations, practice and real DOCX/XLSX plus Markdown/JSON exports |
+| Quiz, flashcards, study guide, Word, Excel and visual materials | `webapp/services/study.py`, `webapp/office_exports.py`, `webapp/visual_exports.py`, `web/src/features/Studio.tsx` | Schemas, instructions/templates, provenance/citations, practice and real DOCX/XLSX/PPTX and safe SVG plus Markdown/JSON exports |
 | Structured source reading | `webapp/source_preview.py`, `web/src/features/StudyContent.tsx` | Passive Canvas HTML, supported presentation styles, continuous extracted text and independent retrieval chunks |
 | Canvas profile configuration | `webapp/services/canvas.py`, `web/src/features/CanvasConfiguration.tsx` | Shared dashboard/settings editor, detected-profile IDs, saved selection, client reset and pending-preview cancellation |
 | Local notes and saved artifacts | `webapp/store.py`, `web/src/features/Studio.tsx` | Note CRUD and saving answers/materials with provenance |
@@ -120,3 +120,11 @@ The follow-up provider setup work adds **Use existing login**, official CLI sign
 Real local Codex login, streamed text and JSON Schema generation passed with short generic prompts and no course data. Claude Code was detected but was not signed in, so real Claude inference is **not verified**; its setup presents the official login action. Standard Codex/Claude desktop apps were not installed on the test machine, so their native launch paths were tested with synthetic metadata and safe config fixtures, not live desktop accounts. One-click desktop discovery/configuration is macOS-specific; manual setup text and official guides remain available elsewhere.
 
 The full regression suite also exposed a concurrent first-launch SQLite journal-mode lock race. Initialization now retries only SQLite busy/locked errors for a bounded ten seconds; concurrent migration coverage runs sixteen initializers. No Canvas write was performed by this provider follow-up.
+
+## Workspace lifecycle and temporary conversations
+
+Schema 5 adds an archive flag without removing source or conversation rows. Dashboard filters archived workspaces; restoration is an explicit PATCH. The course-to-workspace uniqueness constraint is preserved.
+
+Temporary conversations use bounded process memory (20 conversations, 50 messages each, four-hour inactivity expiry), with the same source scope, citation verification and provider/tool boundaries as saved chats. Temporary chat POSTs do not write message/conversation rows. Saving explicitly copies the transcript and provenance in one SQLite transaction and removes the memory entry. Busy chats cannot be saved or deleted; stop the response first. Temporary identifiers are scoped to their workspace and cannot be promoted through a different workspace. Native CLI and cloud-provider data policies still apply.
+
+Visual generation rejects unknown/cyclic map relationships and unverified citations. The app's PowerPoint exporter retains complete visible text, speaker notes and source references; SVG uses escaped text and authored geometry, with no executable model-provided markup or external resources. Infographics are capped at six sections for legibility.

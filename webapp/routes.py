@@ -78,12 +78,22 @@ class ChatRequest(StrictModel):
     source_ids: list[UUID] = Field(default_factory=list, max_length=300)
     message: str = Field(min_length=1, max_length=12000)
     live_tools: bool = False
+    temporary: bool = False
 
 
 class GenerateRequest(StrictModel):
     provider_id: UUID
     source_ids: list[UUID] = Field(max_length=300)
-    kind: Literal["quiz", "flashcards", "study_guide", "document", "spreadsheet"]
+    kind: Literal[
+        "quiz",
+        "flashcards",
+        "study_guide",
+        "document",
+        "spreadsheet",
+        "mindmap",
+        "slides",
+        "infographic",
+    ]
     topic: str = Field(default="", max_length=1000)
     count: int = Field(default=5, ge=1, le=20)
     difficulty: Literal["introductory", "intermediate", "advanced"] = "intermediate"
@@ -91,6 +101,12 @@ class GenerateRequest(StrictModel):
     template: Literal[
         "automatic", "study_notes", "revision_outline", "analysis_report"
     ] = "automatic"
+    language: Literal["automatic", "en", "zh-Hant", "zh-Hans"] = "automatic"
+    orientation: Literal["landscape", "portrait", "square"] = "landscape"
+    visual_style: Literal["automatic", "editorial", "bold", "notebook", "playful"] = (
+        "automatic"
+    )
+    slide_format: Literal["detailed", "presenter"] = "detailed"
 
 
 class NoteRequest(StrictModel):
@@ -438,19 +454,38 @@ def register_study_routes(
         return {"conversations": store.conversations(str(workspace_id))}
 
     @router.get("/workspaces/{workspace_id}/conversations/{conversation_id}")
-    def conversation(workspace_id: UUID, conversation_id: UUID):
+    def conversation(
+        workspace_id: UUID, conversation_id: UUID, temporary: bool = False
+    ):
         workspace(workspace_id)
-        result = store.conversation(str(workspace_id), str(conversation_id))
+        result = (study.temporary if temporary else store).conversation(
+            str(workspace_id), str(conversation_id)
+        )
         if result is None:
             raise HTTPException(404, "Conversation not found.")
         return result
 
+    @router.post(
+        "/workspaces/{workspace_id}/temporary-conversations/{conversation_id}/save"
+    )
+    def save_temporary(workspace_id: UUID, conversation_id: UUID):
+        workspace(workspace_id)
+        return study.save_temporary(str(workspace_id), str(conversation_id))
+
     @router.delete(
         "/workspaces/{workspace_id}/conversations/{conversation_id}", status_code=204
     )
-    def delete_conversation(workspace_id: UUID, conversation_id: UUID):
+    def delete_conversation(
+        workspace_id: UUID, conversation_id: UUID, temporary: bool = False
+    ):
         workspace(workspace_id)
-        if not store.delete_conversation(str(workspace_id), str(conversation_id)):
+        with study._lock:
+            if str(conversation_id) in study._running:
+                raise HTTPException(409, "Stop the response first.")
+            removed = (study.temporary if temporary else store).delete_conversation(
+                str(workspace_id), str(conversation_id)
+            )
+        if not removed:
             raise HTTPException(404, "Conversation not found.")
         return Response(status_code=204)
 
@@ -465,6 +500,7 @@ def register_study_routes(
             payload.message.strip(),
             str(payload.conversation_id) if payload.conversation_id else None,
             payload.live_tools,
+            temporary=payload.temporary,
         )
 
         async def events():
@@ -489,6 +525,10 @@ def register_study_routes(
             payload.difficulty,
             prompt=payload.prompt,
             template=payload.template,
+            language=payload.language,
+            orientation=payload.orientation,
+            visual_style=payload.visual_style,
+            slide_format=payload.slide_format,
         )
 
     @router.get("/workspaces/{workspace_id}/artifacts")
@@ -518,7 +558,7 @@ def register_study_routes(
     def export_artifact(
         workspace_id: UUID,
         artifact_id: UUID,
-        format: Literal["json", "markdown", "docx", "xlsx"] = "json",
+        format: Literal["json", "markdown", "docx", "xlsx", "pptx", "svg"] = "json",
         template: Literal[
             "automatic", "study_notes", "revision_outline", "analysis_report"
         ] = "automatic",
@@ -526,8 +566,25 @@ def register_study_routes(
         row = artifact(workspace_id, artifact_id)
         filename = (
             f"study-{artifact_id}."
-            + {"json": "json", "markdown": "md", "docx": "docx", "xlsx": "xlsx"}[format]
+            + {
+                "json": "json",
+                "markdown": "md",
+                "docx": "docx",
+                "xlsx": "xlsx",
+                "pptx": "pptx",
+                "svg": "svg",
+            }[format]
         )
+        if format in {"pptx", "svg"}:
+            from .visual_exports import visual_export
+
+            return Response(
+                visual_export(row, format),
+                media_type="image/svg+xml"
+                if format == "svg"
+                else "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+            )
         if format in {"docx", "xlsx"}:
             from .office_exports import excel_export, word_export
 
@@ -580,6 +637,9 @@ def register_study_routes(
                     "study_guide": "sections",
                     "document": "sections",
                     "spreadsheet": "rows",
+                    "mindmap": "nodes",
+                    "slides": "slides",
+                    "infographic": "sections",
                 }[row["kind"]]
                 if payload.artifact_index >= len(row["content"][key]):
                     raise HTTPException(

@@ -2554,3 +2554,345 @@ textarea {
   color: var(--muted);
   line-height: 1.5;
 }
+
+/* Text uses its actual container; narrow screens still wrap naturally. */
+p,
+.local-clients > p,
+.chat-empty p,
+.chat-empty h3,
+.chat-disclosure,
+.provider-disclosure,
+.workspace-description {
+  max-width: none;
+}
+h1,
+h2,
+h3,
+h4 {
+  text-wrap: wrap;
+}
+.main-content,
+.settings-section,
+.provider-row > div,
+.local-client-row > div,
+.chat-message,
+.chat-message .study-markdown,
+.workspace-row > span {
+  min-width: 0;
+}
+p,
+li,
+dd,
+h1,
+h2,
+h3,
+h4,
+h5,
+.user-prompt,
+.workspace-row strong {
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.workspace-row span > span {
+  white-space: normal;
+  overflow: visible;
+}
+.study-markdown {
+  white-space: normal;
+}
+.study-markdown pre {
+  white-space: pre;
+  overflow-x: auto;
+}
+.study-markdown li > p {
+  margin-block: 5px;
+}
+.brand .workbench-logo {
+  width: 30px;
+  height: 30px;
+  color: currentColor;
+}
+.preference-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+.preference-field select {
+  min-height: 40px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+}
+.chat-session-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin-block: 14px;
+  font-size: 0.76rem;
+}
+.chat-session-controls .muted {
+  flex: 1 1 180px;
+}
+.category-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.source-group summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+}
+.source-group summary .select-category {
+  margin: 0;
+  font-size: 0.66rem;
+  padding: 6px 4px;
+  min-height: 32px;
+}
+.source-group summary .category-controls {
+  font-size: 0.66rem;
+  color: var(--muted);
+}
+.workspace-filter {
+  margin-bottom: 18px;
+}
+.material-buttons {
+  grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+}
+.material-buttons button,
+.material-buttons button:nth-child(n) {
+  grid-column: auto;
+}
+.segmented-picker {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.segmented-picker legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+.segmented-picker > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.segmented-picker button {
+  flex: 1 1 85px;
+  padding: 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  text-transform: capitalize;
+  text-align: left;
+  min-width: 0;
+}
+.segmented-picker button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--blue);
+  border-color: var(--blue);
+}
+.segmented-picker button strong,
+.segmented-picker button small {
+  display: block;
+}
+.segmented-picker button small {
+  text-transform: none;
+  margin-top: 6px;
+  line-height: 1.5;
+  font-size: 0.72rem;
+}
+.visual-material {
+  min-width: 0;
+}
+.visual-material > .text-button {
+  margin-block: 12px;
+}
+.visual-material-dialog {
+  width: min(1200px, calc(100vw - 40px));
+  max-height: calc(100dvh - 40px);
+  border: 1px solid var(--line-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 24px;
+}
+.visual-material-dialog::backdrop {
+  background: rgba(17, 25, 31, 0.55);
+}
+.visual-material-dialog > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 20px;
+  margin-bottom: 24px;
+}
+.mindmap-preview h4 {
+  padding: 14px 16px;
+  color: #fff;
+  background: var(--blue);
+  border-radius: 6px;
+}
+.mindmap-tree {
+  list-style: none;
+  padding: 12px 0;
+  margin: 0;
+  overflow-x: auto;
+}
+.mindmap-tree ul {
+  list-style: none;
+  padding-left: 18px;
+  margin-top: 12px;
+  border-left: 1px solid var(--line-strong);
+}
+.mindmap-tree li {
+  padding: 10px 0;
+  min-width: 200px;
+}
+.mindmap-tree summary {
+  cursor: pointer;
+  color: var(--blue);
+  font-weight: 650;
+}
+.mindmap-tree p {
+  margin-block: 8px;
+  line-height: 1.7;
+}
+.slide-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-block: 12px;
+}
+.presentation-slide {
+  padding: clamp(16px, 3vw, 40px);
+  background: var(--paper);
+  min-height: 220px;
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.presentation-slide h4 {
+  font-size: 1.35rem;
+  color: var(--blue);
+}
+.presentation-slide p {
+  margin: 0;
+}
+.presentation-slide ul {
+  padding-left: 24px;
+  line-height: 1.8;
+  margin: 0;
+}
+.presentation-slide .citation-list {
+  margin-top: auto;
+}
+.speaker-notes {
+  margin-block: 14px;
+}
+.speaker-notes summary {
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+.infographic-preview {
+  padding: 20px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+}
+.infographic-preview > h4 {
+  color: var(--blue);
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+}
+.infographic-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr));
+  gap: 16px;
+}
+.orientation-portrait .infographic-sections {
+  grid-template-columns: 1fr;
+}
+.visual-material-dialog .orientation-square .infographic-sections {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.infographic-sections section {
+  background: var(--surface);
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.infographic-sections h5 {
+  font-size: 1rem;
+  margin: 0 0 14px;
+}
+.infographic-sections p {
+  margin-block: 12px;
+}
+.infographic-stat {
+  display: block;
+  font-size: 1.65rem;
+  line-height: 1.3;
+  color: var(--blue);
+}
+.visual-bold > h4,
+.visual-bold .infographic-stat {
+  color: var(--blue-deep);
+  font-weight: 750;
+}
+.visual-playful .infographic-sections section {
+  border-radius: 20px;
+}
+.visual-notebook .infographic-sections section {
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  border-radius: 0;
+}
+@media (max-width: 760px) {
+  .settings-section .provider-actions,
+  .local-client-row .provider-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .visual-material-dialog {
+    padding: 16px;
+  }
+  .visual-material-dialog .orientation-square .infographic-sections {
+    grid-template-columns: 1fr;
+  }
+}
+
+.visual-material-dialog {
+  font-size: 1rem;
+  line-height: 1.7;
+}
+.visual-material-dialog .presentation-slide h4 {
+  font-size: 1.8rem;
+}
+.visual-material-dialog .presentation-slide p,
+.visual-material-dialog .presentation-slide li {
+  font-size: 1.15rem;
+}
+.visual-material-dialog .infographic-preview > h4 {
+  font-size: 1.8rem;
+}
+.visual-material-dialog .infographic-sections h5 {
+  font-size: 1.2rem;
+}
+@media (max-width: 760px) {
+  .visual-material-dialog .presentation-slide h4 {
+    font-size: 1.35rem;
+  }
+  .visual-material-dialog .presentation-slide p,
+  .visual-material-dialog .presentation-slide li {
+    font-size: 1rem;
+  }
+}

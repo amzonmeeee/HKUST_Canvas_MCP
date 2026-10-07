@@ -698,3 +698,25 @@ def test_canvas_profile_selection_is_pinned_persistent_and_clears_previews(
             ).status_code
             == 403
         )
+
+
+def test_workspace_archive_is_reversible_and_preserves_content(client, app):
+    workspace = client.post("/api/workspaces", json={"title": "Archive fixture"}).json()
+    base = f"/api/workspaces/{workspace['id']}"
+    source = client.post(
+        base + "/sources/text",
+        json={
+            "title": "Evidence",
+            "content": "Keep this source through archive and restore.",
+        },
+    ).json()
+    archived = client.patch(base, json={"archived": True})
+    assert archived.status_code == 200 and archived.json()["archived"] == 1
+    assert client.get(base + f"/sources/{source['id']}").status_code == 200
+    renamed = client.patch(base, json={"title": "Still archived"}).json()
+    assert renamed["archived"] == 1
+    app.state.repository.initialize()
+    assert app.state.repository.get(workspace["id"])["archived"] == 1
+    restored = client.patch(base, json={"archived": False})
+    assert restored.json()["archived"] == 0
+    assert client.get(base + "/sources").json()["sources"][0]["id"] == source["id"]

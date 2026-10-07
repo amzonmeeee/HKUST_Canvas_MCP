@@ -10,7 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import uuid4
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 def default_data_dir() -> Path:
@@ -164,7 +164,7 @@ class WorkspaceRepository:
         allowed = {
             key: value
             for key, value in changes.items()
-            if key in {"title", "description"}
+            if key in {"title", "description", "archived"}
         }
         if not allowed:
             return self.get(workspace_id)

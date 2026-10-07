@@ -92,6 +92,10 @@ describe("Study safety and controls", () => {
         difficulty,
         prompt: "",
         template: "automatic",
+        language: "automatic",
+        orientation: "landscape",
+        visual_style: "automatic",
+        slide_format: "detailed",
       });
     },
   );
@@ -179,4 +183,23 @@ describe("Study safety and controls", () => {
     ).toBeDisabled();
     expect(requests.some((r) => r.path.endsWith("/generate"))).toBe(false);
   });
+});
+
+it("flows assistant hard-break prose while preserving code whitespace", () => {
+  const { container } = render(
+    <StudyMarkdown
+      text={
+        "First sentence.  \nSecond sentence.\n\n```text\nfirst line\nsecond line\n```"
+      }
+      openCitation={() => {}}
+    />,
+  );
+  expect(container.querySelector("p")).toHaveTextContent(
+    "First sentence. Second sentence.",
+  );
+  expect(container.querySelector("p br")).toBeNull();
+  expect(container.querySelector("pre")).toHaveTextContent("first line");
+  expect(container.querySelector("pre code")?.textContent).toBe(
+    "first line\nsecond line\n",
+  );
 });

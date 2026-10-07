@@ -280,13 +280,20 @@ async function mockApi(page: Page) {
         text: syntheticCitation.excerpt,
         locator: syntheticCitation.locator,
       };
-    else if (path.endsWith("/conversations")) result = { conversations };
+    else if (
+      path.includes("/temporary-conversations/") &&
+      path.endsWith("/save")
+    ) {
+      conversations = [{ id: conversationId, title: "Saved temporary chat" }];
+      result = { ...conversations[0], messages };
+    } else if (path.endsWith("/conversations")) result = { conversations };
     else if (path.endsWith(`/conversations/${conversationId}`))
       result = { id: conversationId, title: "Explain retrieval", messages };
     else if (path.endsWith("/chat")) {
       const prompt = request.postDataJSON().message,
         content = `Retrieval searches selected evidence. [cite:${chunkId}]`;
-      conversations = [{ id: conversationId, title: prompt }];
+      if (!request.postDataJSON().temporary)
+        conversations = [{ id: conversationId, title: prompt }];
       messages = [
         {
           id: "user-message",
@@ -901,9 +908,14 @@ test("Return shortcuts preserve newlines, respect IME and keep conversation cont
     page.getByRole("button", { name: "Save to notes" }),
   ).toBeVisible();
   expect(sends).toBe(1);
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page
     .getByRole("combobox", { name: "Send shortcut" })
     .selectOption("enter");
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
   await prompt.fill("Second line");
   await prompt.press("Meta+Enter");
   await expect(prompt).toHaveValue("Second line\n");
@@ -943,6 +955,7 @@ test("Return shortcuts preserve newlines, respect IME and keep conversation cont
     fullPage: true,
   });
   await page.reload();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(
     page.getByRole("combobox", { name: "Send shortcut" }),
   ).toHaveValue("enter");
@@ -1035,6 +1048,278 @@ test("Studio Word/Excel choices send instructions and template, then offer real 
     .toBe(true);
   await page.screenshot({
     path: "/private/tmp/hkust-canvas-v3-excel-mobile.png",
+    fullPage: true,
+  });
+});
+
+test("archive/restore and temporary chat saved partway through are explicit", async ({
+  page,
+}) => {
+  await page.goto("/#session=synthetic-launch");
+  await page.route("**/api/providers", (route) =>
+    route.fulfill({ json: { providers: [syntheticProvider] } }),
+  );
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  await page
+    .getByRole("button", { name: "Temporary chat", exact: true })
+    .click();
+  await expect(
+    page.getByRole("combobox", { name: "Send shortcut" }),
+  ).toHaveCount(0);
+  await page
+    .getByRole("textbox", { name: "Ask a study question" })
+    .fill("Keep this temporary exchange");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Save chat", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Save to notes", exact: true }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("combobox", { name: "Conversation history" }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Save chat", exact: true }).click();
+  await expect(
+    page.getByText("Chat saved to conversation history."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("combobox", { name: "Conversation history" }),
+  ).toHaveValue(conversationId);
+  await expect(
+    page.getByRole("button", { name: "Save to notes", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("button", { name: "Archive workspace", exact: true })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: /My workspaces/ }),
+  ).toBeVisible();
+  await expect(page.locator(".workspace-row")).toHaveCount(0);
+  await page.getByRole("button", { name: "Archived (1)", exact: true }).click();
+  await expect(page.locator(".workspace-row")).toHaveCount(1);
+  await page.locator(".workspace-row").click();
+  await page
+    .getByRole("button", { name: "Restore workspace", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Archive workspace", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await expect(page.locator(".workspace-row")).toHaveCount(1);
+});
+
+test("visual Studio previews, exports and responsive prose use real container widths", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 3440, height: 1440 });
+  await page.goto("/#session=synthetic-launch");
+  await expect(page.locator(".workbench-logo")).toBeVisible();
+  const favicon = await page.locator('link[rel="icon"]').getAttribute("href");
+  expect(favicon).toMatch(/canvas-mark.*\.svg/);
+  await page.route("**/api/providers", (route) =>
+    route.fulfill({ json: { providers: [syntheticProvider] } }),
+  );
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  const description = page.getByText(/Use a signed-in CLI, an official API/);
+  expect(
+    await description.evaluate((el) => getComputedStyle(el).maxWidth),
+  ).toBe("none");
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-new-settings-wide.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  await page.getByRole("button", { name: "Find course sources" }).click();
+  await page
+    .getByRole("button", { name: "Select category page", exact: true })
+    .click();
+  const summary = page
+    .locator(".source-group summary")
+    .filter({ hasText: "Pages" });
+  const category = page.getByRole("button", {
+    name: "Clear category page",
+    exact: true,
+  });
+  expect((await category.boundingBox())!.x).toBeGreaterThan(
+    (await summary.boundingBox())!.x + 50,
+  );
+  await page.getByRole("button", { name: "Sync selected" }).click();
+  await page.route("**/artifacts/generate", (route) => {
+    const payload = route.request().postDataJSON();
+    const content =
+      payload.kind === "mindmap"
+        ? {
+            title: "Evidence map",
+            nodes: [
+              {
+                id: "evidence",
+                parent_id: null,
+                label: "Evidence",
+                body: "Search selected sources.",
+                citations: [chunkId],
+              },
+              {
+                id: "citation",
+                parent_id: "evidence",
+                label: "Citations",
+                body: "Verify each excerpt.",
+                citations: [chunkId],
+              },
+            ],
+          }
+        : payload.kind === "slides"
+          ? {
+              title: "Evidence slides",
+              slides: [
+                {
+                  heading: "Finding evidence",
+                  body: "Search the selected sources.",
+                  bullets: ["Retrieve", "Verify"],
+                  notes: "Explain how evidence is selected.",
+                  citations: [chunkId],
+                },
+                {
+                  heading: "Citing sources",
+                  body: "Keep citations verifiable.",
+                  bullets: ["Inspect excerpts"],
+                  notes: "Open citations to inspect original text.",
+                  citations: [chunkId],
+                },
+              ],
+            }
+          : {
+              title: "Evidence infographic",
+              sections: [
+                {
+                  heading: "Evidence",
+                  body: "Ground explanations in selected sources.",
+                  stat: "",
+                  citations: [chunkId],
+                },
+                {
+                  heading: "Verification",
+                  body: "Inspect the original excerpt before relying on an answer.",
+                  stat: "",
+                  citations: [chunkId],
+                },
+              ],
+            };
+    return route.fulfill({
+      json: {
+        ...syntheticArtifact,
+        kind: payload.kind,
+        content,
+        provenance: {
+          ...syntheticArtifact.provenance,
+          orientation: payload.orientation,
+          visual_style: payload.visual_style,
+        },
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Mind map", exact: true }).click();
+  await page.getByRole("button", { name: "Generate material" }).click();
+  await expect(page.locator(".mindmap-tree").first()).toContainText(
+    "Citations",
+  );
+  await expect(
+    page.getByRole("link", { name: "SVG", exact: true }),
+  ).toHaveAttribute("href", /format=svg/);
+  await page.getByRole("button", { name: "Expand preview" }).click();
+  await expect(page.locator(".visual-material-dialog")).toBeVisible();
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-map-wide.png",
+    fullPage: true,
+  });
+  await page
+    .locator(".visual-material-dialog")
+    .getByRole("button", { name: /Retrieval notes/ })
+    .first()
+    .click();
+  await expect(page.locator(".visual-material-dialog")).toBeHidden();
+  await expect(page.locator(".source-dialog")).toBeVisible();
+  await page.getByRole("button", { name: "Close source", exact: true }).click();
+  await page.getByRole("button", { name: "Back to materials" }).click();
+  await page.getByRole("button", { name: "Slides", exact: true }).click();
+  await page.getByRole("button", { name: /Presenter slides/ }).click();
+  await page.getByRole("button", { name: "Generate material" }).click();
+  await expect(
+    page.getByRole("link", { name: "PowerPoint (.pptx)" }),
+  ).toHaveAttribute("href", /format=pptx/);
+  await page
+    .getByRole("button", { name: "Next slide", exact: true })
+    .first()
+    .click();
+  await expect(page.locator(".slides-preview").first()).toContainText(
+    "Slide 2 of 2",
+  );
+  await page.getByRole("button", { name: "Expand preview" }).click();
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-slides-wide.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Close material preview" }).click();
+  await page.getByRole("button", { name: "Back to materials" }).click();
+  await page.getByRole("button", { name: "Infographic", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "Language", exact: true })
+    .selectOption("zh-Hant");
+  await page.getByRole("button", { name: "portrait", exact: true }).click();
+  await page.getByRole("button", { name: "notebook", exact: true }).click();
+  await page
+    .getByRole("textbox", { name: "Instructions" })
+    .fill("Use a clear sequence and source-backed statements.");
+  await page.getByRole("button", { name: "Generate material" }).click();
+  await expect(page.locator(".infographic-preview").first()).toHaveClass(
+    /orientation-portrait visual-notebook/,
+  );
+  await page.getByRole("button", { name: "Expand preview" }).click();
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-infographic-wide.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Close material preview" }).click();
+  await page
+    .getByRole("textbox", { name: "Ask a study question" })
+    .fill("Check wrapping");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await expect(
+    page.locator(".chat-message.assistant .study-markdown"),
+  ).toBeVisible();
+  expect(
+    await page
+      .locator(".chat-message.assistant .study-markdown p")
+      .evaluate((el) => getComputedStyle(el).maxWidth),
+  ).toBe("none");
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-workspace-wide.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-workspace-new-mobile.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+    )
+    .toBe(true);
+  expect((await description.boundingBox())!.height).toBeGreaterThan(40);
+  await page.screenshot({
+    path: "/private/tmp/hkust-canvas-v3-settings-new-mobile.png",
     fullPage: true,
   });
 });

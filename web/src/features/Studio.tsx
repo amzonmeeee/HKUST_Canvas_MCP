@@ -1,3 +1,4 @@
+import { VisualMaterial } from "./VisualMaterial";
 import { useEffect, useState } from "react";
 import {
   Plus,
@@ -10,6 +11,9 @@ import {
   BookOpen,
   FileText,
   Table2,
+  Network,
+  Presentation,
+  ChartNoAxesCombined,
 } from "lucide-react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
@@ -66,6 +70,10 @@ export function StudioPanel({
     [revealed, setRevealed] = useState<number[]>([]),
     [removing, setRemoving] = useState<string | null>(null),
     [saved, setSaved] = useState(false);
+  const [language, setLanguage] = useState("automatic"),
+    [orientation, setOrientation] = useState("landscape"),
+    [visualStyle, setVisualStyle] = useState("automatic"),
+    [slideFormat, setSlideFormat] = useState("detailed");
   const [excerptSaved, setExcerptSaved] = useState<number[]>([]);
   async function load() {
     const [a, n] = await Promise.all([
@@ -96,6 +104,10 @@ export function StudioPanel({
           difficulty,
           prompt,
           template,
+          language,
+          orientation,
+          visual_style: visualStyle,
+          slide_format: slideFormat,
         },
       });
       openArtifact(a);
@@ -239,11 +251,14 @@ export function StudioPanel({
             <p className="muted">
               {active.kind.replaceAll("_", " ")} ·{" "}
               {active.provenance.provider_name} · {active.provenance.model}
-              <br />
+              {" · "}
               {new Date(active.provenance.created_at).toLocaleString()} ·{" "}
               {active.provenance.source_ids.length} sources
             </p>
           </header>
+          {["mindmap", "slides", "infographic"].includes(active.kind) && (
+            <VisualMaterial artifact={active} openCitation={openCitation} />
+          )}
           {active.kind === "quiz" &&
             active.content.questions?.map((q, i) => (
               <section className="quiz-question" key={i}>
@@ -411,6 +426,26 @@ export function StudioPanel({
             </div>
           )}
           <div className="artifact-actions">
+            {active.kind === "slides" && (
+              <a
+                className="button primary small"
+                href={`${base}/artifacts/${active.id}/export?format=pptx`}
+                download
+              >
+                <Download size={14} />
+                PowerPoint (.pptx)
+              </a>
+            )}
+            {["mindmap", "infographic"].includes(active.kind) && (
+              <a
+                className="button primary small"
+                href={`${base}/artifacts/${active.id}/export?format=svg`}
+                download
+              >
+                <Download size={14} />
+                SVG
+              </a>
+            )}
             <a
               className="button secondary small"
               href={`${base}/artifacts/${active.id}/export?format=docx&template=${template}`}
@@ -541,6 +576,13 @@ export function StudioPanel({
                     },
                     { value: "document", label: "Word", icon: FileText },
                     { value: "spreadsheet", label: "Excel", icon: Table2 },
+                    { value: "mindmap", label: "Mind map", icon: Network },
+                    { value: "slides", label: "Slides", icon: Presentation },
+                    {
+                      value: "infographic",
+                      label: "Infographic",
+                      icon: ChartNoAxesCombined,
+                    },
                   ] as const
                 ).map((option) => (
                   <button
@@ -548,7 +590,11 @@ export function StudioPanel({
                     type="button"
                     aria-pressed={kind === option.value}
                     disabled={busy}
-                    onClick={() => setKind(option.value)}
+                    onClick={() => {
+                      setKind(option.value);
+                      if (option.value === "infographic")
+                        setCount(Math.min(count, 6));
+                    }}
                   >
                     <option.icon size={19} aria-hidden="true" />
                     {option.label}
@@ -556,6 +602,97 @@ export function StudioPanel({
                 ))}
               </div>
             </fieldset>
+            {["mindmap", "slides", "infographic"].includes(kind) && (
+              <label>
+                Language
+                <select
+                  value={language}
+                  onChange={(event) => setLanguage(event.target.value)}
+                  disabled={busy}
+                >
+                  <option value="automatic">Source language</option>
+                  <option value="en">English</option>
+                  <option value="zh-Hant">繁體中文</option>
+                  <option value="zh-Hans">简体中文</option>
+                </select>
+              </label>
+            )}
+            {kind === "slides" && (
+              <fieldset className="segmented-picker">
+                <legend>Presentation format</legend>
+                <div>
+                  {[
+                    {
+                      value: "detailed",
+                      label: "Detailed deck",
+                      help: "Readable without a speaker",
+                    },
+                    {
+                      value: "presenter",
+                      label: "Presenter slides",
+                      help: "Brief slides with speaker notes",
+                    },
+                  ].map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      aria-pressed={slideFormat === option.value}
+                      disabled={busy}
+                      onClick={() => setSlideFormat(option.value)}
+                    >
+                      <strong>{option.label}</strong>
+                      <small>{option.help}</small>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+            {kind === "infographic" && (
+              <>
+                <fieldset className="segmented-picker">
+                  <legend>Orientation</legend>
+                  <div>
+                    {["landscape", "portrait", "square"].map((value) => (
+                      <button
+                        type="button"
+                        key={value}
+                        aria-pressed={orientation === value}
+                        disabled={busy}
+                        onClick={() => setOrientation(value)}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset className="segmented-picker">
+                  <legend>Visual style</legend>
+                  <div>
+                    {[
+                      "automatic",
+                      "editorial",
+                      "bold",
+                      "notebook",
+                      "playful",
+                    ].map((value) => (
+                      <button
+                        type="button"
+                        key={value}
+                        aria-pressed={visualStyle === value}
+                        disabled={busy}
+                        onClick={() => setVisualStyle(value)}
+                      >
+                        {value}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <p className="muted">
+                  A vector layout with source-backed text and statistics. Export
+                  as SVG for a scalable graphic.
+                </p>
+              </>
+            )}
             {kind === "document" && (
               <label>
                 Document template
@@ -607,14 +744,18 @@ export function StudioPanel({
                   ? "Questions"
                   : kind === "flashcards"
                     ? "Cards"
-                    : kind === "spreadsheet"
-                      ? "Rows"
-                      : "Sections"}
+                    : kind === "mindmap"
+                      ? "Concepts"
+                      : kind === "slides"
+                        ? "Slides"
+                        : kind === "spreadsheet"
+                          ? "Rows"
+                          : "Sections"}
                 <input
                   type="number"
                   value={count}
                   min={1}
-                  max={20}
+                  max={kind === "infographic" ? 6 : 20}
                   required
                   onChange={(e) => setCount(Number(e.target.value))}
                 />

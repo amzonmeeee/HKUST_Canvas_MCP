@@ -323,30 +323,39 @@ export function SourcesPanel({
                   {kind === "upload"
                     ? "Your uploads"
                     : kind[0].toUpperCase() + kind.slice(1) + "s"}
-                  <span>{visible.filter((s) => s.kind === kind).length}</span>
+                  <span className="category-controls">
+                    {" "}
+                    <span>
+                      {visible.filter((s) => s.kind === kind).length}
+                    </span>{" "}
+                    <button
+                      className="text-button select-category"
+                      disabled={
+                        !visible.some(
+                          (s) =>
+                            s.kind === kind &&
+                            s.status !== "external_reference",
+                        )
+                      }
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleGroup(visible.filter((s) => s.kind === kind));
+                      }}
+                    >
+                      {visible
+                        .filter(
+                          (s) =>
+                            s.kind === kind &&
+                            s.status !== "external_reference",
+                        )
+                        .every((s) => selected.includes(s.id))
+                        ? "Clear category"
+                        : "Select category"}
+                      <span className="visually-hidden"> {kind}</span>
+                    </button>
+                  </span>
                 </summary>
-                <button
-                  className="text-button select-category"
-                  disabled={
-                    !visible.some(
-                      (s) =>
-                        s.kind === kind && s.status !== "external_reference",
-                    )
-                  }
-                  onClick={() =>
-                    toggleGroup(visible.filter((s) => s.kind === kind))
-                  }
-                >
-                  {visible
-                    .filter(
-                      (s) =>
-                        s.kind === kind && s.status !== "external_reference",
-                    )
-                    .every((s) => selected.includes(s.id))
-                    ? "Clear category"
-                    : "Select category"}
-                  <span className="visually-hidden"> {kind}</span>
-                </button>
                 {visible
                   .filter((s) => s.kind === kind)
                   .map((s) => (

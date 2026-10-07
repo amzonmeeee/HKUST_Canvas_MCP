@@ -1,3 +1,4 @@
+import { useSendShortcut } from "../chatPreferences";
 import { useEffect, useState } from "react";
 import { Copy, Check, ArrowUpRight } from "lucide-react";
 import { api } from "../api";
@@ -8,6 +9,7 @@ import { CanvasConfiguration } from "./CanvasConfiguration";
 import { LocalClients } from "./LocalClients";
 
 export function SettingsPage() {
+  const [sendShortcut, setSendShortcut] = useSendShortcut();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
@@ -45,6 +47,27 @@ export function SettingsPage() {
         !error && <Loading>Loading settings…</Loading>
       ) : (
         <div className="settings-content">
+          <section className="settings-section">
+            <h2>Conversation preferences</h2>
+            <label className="preference-field">
+              Send with
+              <select
+                aria-label="Send shortcut"
+                value={sendShortcut}
+                onChange={(event) =>
+                  setSendShortcut(event.target.value as "enter" | "mod-enter")
+                }
+              >
+                <option value="enter">Return</option>
+                <option value="mod-enter">⌘ / Ctrl + Return</option>
+              </select>
+            </label>
+            <p>
+              The other shortcut inserts a new line. Shift + Return always
+              inserts a new line. This preference applies to every workspace in
+              this browser.
+            </p>
+          </section>
           <section className="settings-section">
             <h2>Canvas connection</h2>
             <p>

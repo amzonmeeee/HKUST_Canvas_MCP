@@ -15,7 +15,44 @@ def _plain(value):
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value))
 
 
+def _office_artifact(artifact):
+    """Give visual materials a complete text representation for Office exports."""
+    kind, content = artifact["kind"], artifact["content"]
+    if kind not in {"mindmap", "slides", "infographic"}:
+        return artifact
+    items = content[
+        {"mindmap": "nodes", "slides": "slides", "infographic": "sections"}[kind]
+    ]
+    sections = []
+    for item in items:
+        body = item["body"]
+        if kind == "slides":
+            body += (
+                "\n"
+                + "\n".join("- " + b for b in item["bullets"])
+                + "\nSpeaker notes: "
+                + item["notes"]
+            )
+        elif kind == "mindmap":
+            body = "Parent: " + (item["parent_id"] or artifact["title"]) + "\n" + body
+        elif item["stat"]:
+            body = item["stat"] + "\n" + body
+        sections.append(
+            {
+                "heading": item.get("heading", item.get("label")),
+                "body": body,
+                "citations": item["citations"],
+            }
+        )
+    return {
+        **artifact,
+        "kind": "document",
+        "content": {"title": artifact["title"], "sections": sections},
+    }
+
+
 def word_export(artifact, template="automatic"):
+    artifact = _office_artifact(artifact)
     from docx import Document
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -144,6 +181,7 @@ def word_export(artifact, template="automatic"):
 
 
 def excel_export(artifact):
+    artifact = _office_artifact(artifact)
     from openpyxl import Workbook
     from openpyxl.styles import Alignment, Font, PatternFill
     from openpyxl.utils import get_column_letter

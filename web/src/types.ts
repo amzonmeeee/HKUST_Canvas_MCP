@@ -16,6 +16,7 @@ export type Workspace = {
   created_at: string;
   updated_at: string;
   last_sync_at: string | null;
+  archived?: boolean | number;
 };
 export type CanvasStatus = {
   auth_verified: boolean;
@@ -114,10 +115,24 @@ export type ArtifactItem = {
   body?: string;
   citations: string[];
   cells?: string[];
+  id?: string;
+  parent_id?: string | null;
+  label?: string;
+  bullets?: string[];
+  notes?: string;
+  stat?: string;
 };
 export type Artifact = {
   id: string;
-  kind: "quiz" | "flashcards" | "study_guide" | "document" | "spreadsheet";
+  kind:
+    | "quiz"
+    | "flashcards"
+    | "study_guide"
+    | "document"
+    | "spreadsheet"
+    | "mindmap"
+    | "slides"
+    | "infographic";
   title: string;
   content: {
     title: string;
@@ -127,6 +142,8 @@ export type Artifact = {
     template?: string;
     columns?: string[];
     rows?: ArtifactItem[];
+    nodes?: ArtifactItem[];
+    slides?: ArtifactItem[];
   };
   provenance: {
     citations: Citation[];
@@ -135,6 +152,9 @@ export type Artifact = {
     created_at: string;
     source_ids: string[];
     prompt_version: string;
+    orientation?: string;
+    visual_style?: string;
+    slide_format?: string;
   };
 };
 export type Note = {

@@ -1,3 +1,4 @@
+import { useSendShortcut } from "../chatPreferences";
 import { useEffect, useRef, useState } from "react";
 import {
   Send,
@@ -53,25 +54,8 @@ export function ChatPanel({
     [deleting, setDeleting] = useState(false),
     [retrieved, setRetrieved] = useState<Citation[]>([]),
     [saved, setSaved] = useState<string[]>([]);
-  const [sendShortcut, setSendShortcut] = useState<"enter" | "mod-enter">(
-    () => {
-      try {
-        return localStorage.getItem("canvas-workbench.send-shortcut") ===
-          "enter"
-          ? "enter"
-          : "mod-enter";
-      } catch {
-        return "mod-enter";
-      }
-    },
-  );
-  useEffect(() => {
-    try {
-      localStorage.setItem("canvas-workbench.send-shortcut", sendShortcut);
-    } catch {
-      /* Optional preference. */
-    }
-  }, [sendShortcut]);
+  const [sendShortcut] = useSendShortcut();
+  const [temporary, setTemporary] = useState(false);
   const controller = useRef<AbortController | null>(null),
     end = useRef<HTMLDivElement>(null);
   const provider = providers.find((p) => p.id === providerId);
@@ -108,7 +92,18 @@ export function ChatPanel({
     if (busy)
       end.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
   }, [messages.length, busy]);
-  async function open(id: string) {
+  async function open(id: string, asTemporary = false) {
+    if (temporary && conversationId) {
+      try {
+        await api(`${base}/conversations/${conversationId}?temporary=true`, {
+          method: "DELETE",
+        });
+      } catch (problem) {
+        setError((problem as Error).message);
+        return;
+      }
+    }
+    setTemporary(asTemporary);
     setConversationId(id);
     setDeleting(false);
     setError("");
@@ -169,6 +164,7 @@ export function ChatPanel({
           source_ids: sourceIds,
           ...(conversationId ? { conversation_id: conversationId } : {}),
           live_tools: live,
+          temporary,
         },
         (event) => {
           if (event.type === "conversation") {
@@ -220,7 +216,12 @@ export function ChatPanel({
       );
     } catch (p) {
       if ((p as Error).name !== "AbortError") setError((p as Error).message);
-      else setWarning("Response stopped. Partial text is saved.");
+      else
+        setWarning(
+          temporary
+            ? "Response stopped. Partial text stays in this temporary chat."
+            : "Response stopped. Partial text is saved.",
+        );
     } finally {
       setBusy(false);
       setActivity("");
@@ -229,13 +230,29 @@ export function ChatPanel({
       if (activeId) {
         try {
           const result = await api<Conversation>(
-            `${base}/conversations/${activeId}`,
+            `${base}/conversations/${activeId}${temporary ? "?temporary=true" : ""}`,
           );
           setMessages(result.messages || []);
         } catch {
           /* Keep the partial UI answer if the local server disconnected. */
         }
       }
+    }
+  }
+  async function saveTemporary() {
+    if (busy || !conversationId) return;
+    try {
+      const saved = await api<Conversation>(
+        `${base}/temporary-conversations/${conversationId}/save`,
+        { method: "POST" },
+      );
+      setTemporary(false);
+      setConversationId(saved.id);
+      setMessages(saved.messages || []);
+      setWarning("Chat saved to conversation history.");
+      await refresh();
+    } catch (problem) {
+      setError((problem as Error).message);
     }
   }
   async function saveMessage(m: Message) {
@@ -295,7 +312,7 @@ export function ChatPanel({
             <Plus size={18} />
           </button>
         </div>
-        {conversations.length > 0 && (
+        {!temporary && conversations.length > 0 && (
           <div className="conversation-controls">
             <label htmlFor="conversation-choice">History</label>
             <select
@@ -336,6 +353,31 @@ export function ChatPanel({
           </button>
         </div>
       )}
+      <div className="chat-session-controls">
+        <button
+          className="text-button"
+          disabled={busy}
+          aria-pressed={temporary}
+          onClick={() => void open("", true)}
+        >
+          Temporary chat
+        </button>
+        {temporary && (
+          <>
+            <span className="muted">
+              Not saved to history. Save this chat to keep it.
+            </span>
+            <button
+              className="button secondary small"
+              disabled={busy || !conversationId}
+              onClick={() => void saveTemporary()}
+            >
+              <Bookmark size={14} />
+              Save chat
+            </button>
+          </>
+        )}
+      </div>
       {error && <ErrorNotice message={error} />}{" "}
       {warning && (
         <p className="inline-warning" role="status">
@@ -395,8 +437,9 @@ export function ChatPanel({
                 {m.id !== "streaming-answer" && (
                   <button
                     className="text-button save-answer"
+                    title={temporary ? "Save this chat first" : undefined}
                     onClick={() => void saveMessage(m)}
-                    disabled={saved.includes(m.id)}
+                    disabled={temporary || saved.includes(m.id)}
                   >
                     <Bookmark size={14} />
                     {saved.includes(m.id) ? "Saved to notes" : "Save to notes"}
@@ -462,19 +505,6 @@ export function ChatPanel({
         <div className="composer-footer">
           <div className="composer-options">
             <span>{sourceIds.length} sources selected</span>
-            <label>
-              Send with{" "}
-              <select
-                aria-label="Send shortcut"
-                value={sendShortcut}
-                onChange={(event) =>
-                  setSendShortcut(event.target.value as "enter" | "mod-enter")
-                }
-              >
-                <option value="enter">Return</option>
-                <option value="mod-enter">⌘ / Ctrl + Return</option>
-              </select>
-            </label>
             <small>
               {sendShortcut === "enter"
                 ? "⌘ / Ctrl + Return or Shift + Return for a new line"

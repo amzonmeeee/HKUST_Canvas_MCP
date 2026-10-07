@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import {
+  Archive,
+  ArchiveRestore,
   ArrowLeft,
   FileText,
   MessageSquare,
@@ -89,6 +91,23 @@ export function WorkspacePage({
       setBusy(false);
     }
   }
+  async function archive() {
+    if (!workspace) return;
+    setBusy(true);
+    setError("");
+    try {
+      const updated = await api<Workspace>(`/api/workspaces/${workspaceId}`, {
+        method: "PATCH",
+        body: { archived: !workspace.archived },
+      });
+      setWorkspace(updated);
+      if (updated.archived) navigate("/");
+    } catch (problem) {
+      setError((problem as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <>
       <button className="back-link" onClick={() => navigate("/")}>
@@ -117,6 +136,18 @@ export function WorkspacePage({
             <p className="workspace-description">{workspace.description}</p>
           )}
           <div className="workspace-actions">
+            <button
+              className="text-button"
+              disabled={busy}
+              onClick={() => void archive()}
+            >
+              {workspace.archived ? (
+                <ArchiveRestore size={15} />
+              ) : (
+                <Archive size={15} />
+              )}
+              {workspace.archived ? "Restore workspace" : "Archive workspace"}
+            </button>
             <button
               className="text-button"
               disabled={busy}
