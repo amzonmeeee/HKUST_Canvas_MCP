@@ -20,6 +20,7 @@ from cli.misc import tool_app as cli_tool_app
 from cli.output import OutputMode, emit, fail
 from cli.scheduled import scheduled_app
 from cli.settings import settings_app
+from cli.web import register as register_web
 from specs.registry import TOOL_SPECS, dispatch_tool_call
 
 app = typer.Typer(
@@ -80,6 +81,7 @@ def _parse_json(value: str | None, *, flag_name: str) -> Any:
 
 
 register_courses(_invoke)
+register_web(app)
 register_assignments(_invoke)
 register_discussions(_invoke)
 register_files(_invoke)

@@ -3,6 +3,13 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
+node_modules/
+*.tsbuildinfo
+web/coverage/
+web/test-results/
+web/playwright-report/
+webapp/static/
+.impeccable/
 
 # Virtual environments
 .venv/
@@ -52,6 +59,12 @@ credentials*.json
 settings.local.json
 mcp.local.json
 .mcp.json
+.codex/
+.claude/
+.claude.json
+auth.json
+.credentials.json
+claude_desktop_config.json
 .cache/
 .config/canvasmcp/
 
