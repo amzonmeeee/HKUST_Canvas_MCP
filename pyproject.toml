@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hkust-canvas-mcp"
-version = "3.0.0"
+version = "3.0"
 description = "Local HKUST Canvas CLI, MCP server and AI study workbench"
 readme = "README.md"
 license = "MIT"
