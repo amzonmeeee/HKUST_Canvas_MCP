@@ -26,6 +26,14 @@ def desktop_path(kind):
 
 
 def mcp_launcher(profile):
+    if getattr(sys, "frozen", False):
+        entry = {
+            "command": sys.executable,
+            "args": ["--mcp", "--transport", "stdio", "--no-banner", "--read-only"],
+        }
+        if profile and profile != "Selected by profile path":
+            entry["env"] = {"CANVAS_CHROME_PROFILE": profile}
+        return entry
     command = Path(sys.executable).with_name("canvas-mcp")
     args = ["--transport", "stdio", "--no-banner", "--read-only"]
     if not command.is_file():

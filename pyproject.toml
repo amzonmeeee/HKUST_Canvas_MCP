@@ -39,6 +39,7 @@ web = [
 package = true
 
 [dependency-groups]
+packaging = ["pyinstaller==6.22.3"]
 dev = [
   "pytest>=8.0",
   "httpx>=0.27,<1",

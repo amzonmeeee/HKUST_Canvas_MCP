@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import errno
+import os
 import secrets
 import socket
+import threading
+import time
 import webbrowser
 from pathlib import Path
 
@@ -24,7 +27,12 @@ def reserve_socket(port: int) -> socket.socket:
 
 
 def launch(
-    *, port: int = 8765, open_browser: bool = True, data_dir: Path | None = None
+    *,
+    port: int = 8765,
+    open_browser: bool = True,
+    data_dir: Path | None = None,
+    on_ready=None,
+    parent_pid: int | None = None,
 ):
     import uvicorn
 
@@ -41,7 +49,14 @@ def launch(
             async def startup(self, sockets=None):
                 await super().startup(sockets=sockets)
                 if self.started:
-                    print(f"HKUST Canvas Workbench running at:\n{url}", flush=True)
+                    if on_ready:
+                        on_ready(url)
+                        print(
+                            f"Workbench ready on loopback port {actual_port}.",
+                            flush=True,
+                        )
+                    else:
+                        print(f"HKUST Canvas Workbench running at:\n{url}", flush=True)
                     print(
                         "Keep this terminal open. Press Ctrl+C to stop. The launch URL is private to this local session.",
                         flush=True,
@@ -55,6 +70,16 @@ def launch(
         server = WorkbenchServer(
             uvicorn.Config(app, host="127.0.0.1", port=actual_port, access_log=False)
         )
+        if parent_pid is not None:
+
+            def monitor_owner():
+                while not server.should_exit:
+                    if os.getppid() != parent_pid:
+                        server.should_exit = True
+                        return
+                    time.sleep(0.5)
+
+            threading.Thread(target=monitor_owner, daemon=True).start()
         server.run(sockets=[sock])
     finally:
         sock.close()

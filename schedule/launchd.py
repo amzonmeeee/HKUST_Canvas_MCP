@@ -33,6 +33,8 @@ def resolve_canvas_bin() -> str:
     override = os.environ.get("CANVASMCP_CANVAS_BIN", "").strip()
     if override:
         return str(Path(override).expanduser().resolve())
+    if getattr(sys, "frozen", False):
+        return sys.executable
     found = shutil.which("canvas")
     if found:
         return str(Path(found).resolve())
@@ -73,7 +75,17 @@ def write_plist(
     path = plist_path(job_id)
     payload = {
         "Label": plist_label(job_id),
-        "ProgramArguments": [binary, "scheduled", "fire", job_id],
+        "ProgramArguments": [
+            binary,
+            *(
+                ["--cli"]
+                if getattr(sys, "frozen", False) and binary == sys.executable
+                else []
+            ),
+            "scheduled",
+            "fire",
+            job_id,
+        ],
         "StartCalendarInterval": start_calendar_interval(submit_at),
     }
     path.parent.mkdir(parents=True, exist_ok=True)

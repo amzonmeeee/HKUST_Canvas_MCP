@@ -227,8 +227,13 @@ def extract(path: Path, suffix: str):
 def parse_file(path: Path, suffix: str):
     """Isolate document parsers so malformed documents cannot stall the web server."""
     try:
+        entry = (
+            ["--parse-worker"]
+            if getattr(sys, "frozen", False)
+            else [str(Path(__file__).resolve())]
+        )
         result = subprocess.run(
-            [sys.executable, str(Path(__file__).resolve()), str(path), suffix],
+            [sys.executable, *entry, str(path), suffix],
             capture_output=True,
             text=True,
             timeout=45,
@@ -248,7 +253,8 @@ def parse_file(path: Path, suffix: str):
     return payload["chunks"]
 
 
-if __name__ == "__main__":
+def worker_main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
     try:
         if sys.platform != "win32":
             import resource
@@ -261,7 +267,7 @@ if __name__ == "__main__":
                 resource.setrlimit(
                     resource.RLIMIT_AS, (512 * 1024 * 1024, 512 * 1024 * 1024)
                 )
-        print(json.dumps({"chunks": extract(Path(sys.argv[1]), sys.argv[2])}))
+        print(json.dumps({"chunks": extract(Path(argv[0]), argv[1])}))
     except ParseError as exc:
         print(json.dumps({"error": {"code": exc.code, "message": str(exc)}}))
     except Exception:  # noqa: BLE001 -- untrusted parser errors may contain private text
@@ -275,3 +281,7 @@ if __name__ == "__main__":
                 }
             )
         )
+
+
+if __name__ == "__main__":
+    worker_main()
