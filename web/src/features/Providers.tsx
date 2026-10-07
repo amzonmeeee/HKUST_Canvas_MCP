@@ -177,13 +177,15 @@ export function ProviderSettings() {
                 disabled={busy}
                 onClick={() => setDeleting(p.id)}
               >
-                Remove
+                Disconnect
               </button>
             </div>
             {deleting === p.id && (
               <div className="inline-confirm">
                 <p>
-                  Remove this provider configuration? Saved conversations and
+                  Disconnect this provider? Its workbench configuration and any
+                  API key saved by this app will be removed. Your external
+                  account and CLI login are unchanged. Saved conversations and
                   study materials are kept.
                 </p>
                 <button
@@ -191,7 +193,7 @@ export function ProviderSettings() {
                   disabled={busy}
                   onClick={() => void remove(p.id)}
                 >
-                  Remove provider
+                  Disconnect provider
                 </button>
                 <button
                   className="text-button"

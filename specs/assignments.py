@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from specs.schema import ToolSpec, tool_spec
 from tools import (
     cancel_scheduled_submission,
     confirm_assignment_submission,
@@ -13,8 +14,6 @@ from tools import (
     list_scheduled_submissions,
     preview_assignment_submission,
 )
-
-from specs.schema import ToolSpec, tool_spec
 
 ASSIGNMENT_TOOL_SPECS: list[ToolSpec] = [
     tool_spec(
@@ -137,6 +136,7 @@ ASSIGNMENT_TOOL_SPECS: list[ToolSpec] = [
     ),
     tool_spec(
         name="confirm_assignment_submission",
+        annotations={"readOnlyHint": False, "openWorldHint": True},
         description=(
             "Confirm a previewed submit. Uploads files and either submits now "
             "or arms a local scheduled job. Requires a preview_token."
@@ -182,6 +182,7 @@ ASSIGNMENT_TOOL_SPECS: list[ToolSpec] = [
     ),
     tool_spec(
         name="cancel_scheduled_submission",
+        annotations={"readOnlyHint": False, "openWorldHint": True},
         description=(
             "Cancel a pending scheduled submission: unload launchd, delete "
             "uploaded Canvas files we created, and stop caffeinate."

@@ -506,6 +506,42 @@ def test_provider_secrets_never_echo_or_persist(setup):
     assert secrets.get(identifier) is None
 
 
+def test_provider_disconnect_failure_keeps_binding_for_retry(setup):
+    client, app, workspace, existing, _fake, secrets, _canvas = setup
+    saved = client.post("/api/providers", json={
+        "name": "Synthetic owned key", "kind": "openai", "model": "synthetic",
+        "api_key": "synthetic-owned-key",
+    }).json()
+    from webapp.providers import ProviderError
+
+    secrets.delete = Mock(side_effect=ProviderError("keychain_unavailable", "Synthetic locked credential store", 503))
+    response = client.delete(f"/api/providers/{saved['id']}")
+    assert response.status_code == 503
+    assert app.state.study_store.provider(saved["id"])["key_saved"]
+    assert app.state.study_store.provider(existing["id"]) is not None
+    assert client.get(f"/api/workspaces/{workspace['id']}").status_code == 200
+    secrets.delete.assert_called_once_with(saved["id"])
+
+
+def test_cli_provider_disconnect_preserves_external_login_and_other_data(setup, tmp_path, monkeypatch):
+    client, app, workspace, existing, _fake, secrets, _canvas = setup
+    external_login = tmp_path / "synthetic-external-login.json"
+    external_login.write_text('{"synthetic": "external-login-data"}')
+    monkeypatch.setattr("webapp.routes.find_cli", lambda _: "/synthetic/claude")
+    saved = client.post("/api/providers", json={
+        "name": "Synthetic CLI", "kind": "claude_code", "model": "default",
+    })
+    assert saved.status_code == 201
+    identifier = saved.json()["id"]
+    secrets.delete = Mock(side_effect=AssertionError("CLI login is not an app-owned key"))
+    assert client.delete(f"/api/providers/{identifier}").status_code == 204
+    assert app.state.study_store.provider(identifier) is None
+    assert app.state.study_store.provider(existing["id"]) is not None
+    assert client.get(f"/api/workspaces/{workspace['id']}").status_code == 200
+    assert external_login.read_text() == '{"synthetic": "external-login-data"}'
+    secrets.delete.assert_not_called()
+
+
 @pytest.mark.parametrize(
     "url",
     [

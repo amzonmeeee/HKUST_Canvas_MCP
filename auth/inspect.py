@@ -7,13 +7,28 @@ from .chrome_cookies import (
     list_canvas_cookie_domains,
     list_chrome_profiles,
 )
-
 from .probe import get_auth_status
 from .profiles import resolve_chrome_profile_path
 from .resolve import resolve_canvas_base_url
+from .settings import is_canvas_unlinked
 
 
 def describe_chrome_profiles() -> list[dict[str, Any]]:
+    if is_canvas_unlinked():
+        return [
+            {
+                "name": profile.name,
+                "path": profile.path,
+                "cookie_file": profile.cookie_file,
+                "detected_canvas_domains": [],
+                "resolved_canvas_base_url": resolve_canvas_base_url(),
+                "auth_status": "unconfigured",
+                "auth_verified": False,
+                "selected": False,
+                "active": False,
+            }
+            for profile in list_chrome_profiles()
+        ]
     selected_path = Path(resolve_chrome_profile_path()).expanduser().resolve()
     profiles: list[dict[str, Any]] = []
     for profile in list_chrome_profiles():

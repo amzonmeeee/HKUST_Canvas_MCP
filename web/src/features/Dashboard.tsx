@@ -145,9 +145,11 @@ export function Dashboard({ navigate }: { navigate: (path: string) => void }) {
         <span>
           {status?.auth_verified
             ? "Canvas connected"
-            : loading
-              ? "Checking Canvas connection…"
-              : "Canvas connection needs attention"}
+            : status?.auth_status === "unconfigured"
+              ? "Canvas: Not connected"
+              : loading
+                ? "Checking Canvas connection…"
+                : "Canvas connection needs attention"}
         </span>
         {status?.profile_name && (
           <span className="muted">Chrome · {status.profile_name}</span>

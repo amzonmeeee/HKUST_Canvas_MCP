@@ -27,7 +27,7 @@ def desktop_path(kind):
 
 def mcp_launcher(profile):
     command = Path(sys.executable).with_name("canvas-mcp")
-    args = ["--transport", "stdio", "--no-banner"]
+    args = ["--transport", "stdio", "--no-banner", "--read-only"]
     if not command.is_file():
         command = Path(sys.executable)
         args = ["-c", "from mcp_entry import main; main()", *args]

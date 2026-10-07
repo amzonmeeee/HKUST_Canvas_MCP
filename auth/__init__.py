@@ -5,6 +5,7 @@ from auth.errors import (
     missing_chrome_session_error,
 )
 from auth.probe import get_auth_status
+from auth.profiles import require_connected_profile
 from auth.resolve import resolve_canvas_base_url
 from auth.session import (
     apply_chrome_session_to_http_session,
@@ -13,14 +14,15 @@ from auth.session import (
 
 
 def ensure_canvas_auth_configured() -> str:
+    require_connected_profile()
     base_url = resolve_canvas_base_url()
     if read_chrome_session_cookies(base_url):
         return "chrome-session"
     raise missing_chrome_session_error(base_url)
 
 __all__ = [
-    "apply_chrome_session_to_http_session",
     "CanvasAPIError",
+    "apply_chrome_session_to_http_session",
     "ensure_canvas_auth_configured",
     "get_auth_status",
     "missing_chrome_session_error",

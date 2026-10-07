@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Callable, Iterable
+from typing import Any
 
 from canvasapi import Canvas
 from canvasapi.exceptions import (
@@ -14,6 +15,7 @@ from canvasapi.paginated_list import PaginatedList
 from canvasapi.util import combine_kwargs
 
 from auth import CanvasAPIError, apply_chrome_session_to_http_session
+from auth.profiles import require_connected_profile
 from auth.resolve import HKUST_CANVAS_BASE_URL, require_hkust_canvas_url
 from auth.urls import canvas_root_url, normalize_canvas_api_base_url
 
@@ -76,6 +78,7 @@ class CanvasClientBase:
         )
 
     def _run_with_canvas(self, call: Callable[[Canvas], Any]) -> Any:
+        require_connected_profile()
         canvas = Canvas(self._root_url, "")
         try:
             self._inject_session_cookies(canvas)
@@ -132,7 +135,7 @@ class CanvasClientBase:
         endpoint: str,
         params: dict[str, Any] | None = None,
     ) -> PaginatedList:
-        requester = getattr(canvas, "_Canvas__requester")
+        requester = canvas._Canvas__requester
         if params:
             return PaginatedList(
                 content_class,

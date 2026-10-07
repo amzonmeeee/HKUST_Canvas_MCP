@@ -13,6 +13,7 @@ from .session import (
     apply_chrome_session_to_http_session,
     list_canvas_cookie_domains_for_profile,
 )
+from .settings import is_canvas_unlinked
 from .urls import canvas_root_url, normalize_canvas_api_base_url
 
 
@@ -24,6 +25,15 @@ def get_auth_status(
     profile_name: str | None = None,
     profile_path: str | None = None,
 ) -> dict[str, Any]:
+    if is_canvas_unlinked():
+        return {
+            "auth_mode": None,
+            "auth_verified": False,
+            "auth_status": "unconfigured",
+            "selected_chrome_profile": None,
+            "selected_chrome_profile_path": None,
+            "error": "Canvas profile is unlinked. Choose a profile before using Canvas.",
+        }
     resolved_base_url = (
         require_hkust_canvas_url(base_url)
         if base_url
@@ -108,9 +118,7 @@ def get_auth_status(
         return status
 
     body_prefix = response.text[:300].casefold()
-    if response.is_redirect or response.status_code in {401, 403}:
-        status["auth_status"] = "not_logged_in"
-    elif "central authentication service" in body_prefix or "shibboleth" in body_prefix:
+    if response.is_redirect or response.status_code in {401, 403} or "central authentication service" in body_prefix or "shibboleth" in body_prefix:
         status["auth_status"] = "not_logged_in"
     else:
         status["auth_status"] = "unexpected_response"

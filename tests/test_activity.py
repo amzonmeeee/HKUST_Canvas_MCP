@@ -2,10 +2,10 @@
 from __future__ import annotations
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
-from io import StringIO
 import json
+from concurrent.futures import ThreadPoolExecutor
+from datetime import UTC, datetime
+from io import StringIO
 from threading import Barrier
 from urllib.parse import parse_qs, urlparse
 
@@ -15,11 +15,11 @@ from rich.console import Console
 from typer.testing import CliRunner
 
 from auth import CanvasAPIError
-from client import CanvasClient
 from cli import app, bootstrap
 from cli.output import _Pretty, _render
+from client import CanvasClient
 from specs.registry import dispatch_tool_call
-from tools import activity, interactions, write_confirmation
+from tools import activity, write_confirmation
 
 
 def batch(items=(), truncated=False):
@@ -37,7 +37,7 @@ def activity_client(mock_client, monkeypatch, tmp_path):
     return mock_client
 
 
-NOW = datetime(2026, 1, 10, tzinfo=timezone.utc)
+NOW = datetime(2026, 1, 10, tzinfo=UTC)
 
 
 @pytest.mark.parametrize("assignment, expected", [
@@ -363,7 +363,7 @@ def test_locked_discussion_never_previews_or_posts(activity_client):
 @pytest.mark.parametrize("action", ["post_discussion_entry", "reply_to_discussion_entry"])
 def test_discussion_explicit_reply_permission_overrides_publication_state(activity_client, restriction, action):
     topic = {"id": 42, "permissions": {"reply": True}}
-    topic["published" if restriction == "unpublished" else restriction] = False if restriction == "unpublished" else True
+    topic["published" if restriction == "unpublished" else restriction] = restriction != "unpublished"
     activity_client.activity_get.return_value = topic
     args = {"course_id": "1", "topic_id": "2", "message": "Synthetic test post"}
     if action == "reply_to_discussion_entry":
@@ -506,9 +506,10 @@ def test_pretty_write_preview_preserves_raw_html_and_token():
     assert "x" * 80 in stream.getvalue()
 
 
-def test_mcp_exposes_new_tools_and_confirms_shared_read_behavior(activity_client):
+def test_mcp_opt_in_exposes_new_tools_and_confirms_shared_read_behavior(activity_client):
     from fastmcp import Client
-    from canvas_mcp.server import mcp
+
+    from canvas_mcp.server import configure_permissions, mcp
     async def run():
         async with Client(mcp) as client:
             tools = {tool.name: tool for tool in await client.list_tools()}
@@ -517,5 +518,9 @@ def test_mcp_exposes_new_tools_and_confirms_shared_read_behavior(activity_client
             assert "confirmation_token" in tools["send_conversation"].inputSchema["properties"]
             result = await client.call_tool("list_conversations", {"limit": 5})
             assert result.data["count"] == 0
-    asyncio.run(run())
+    configure_permissions(allow_writes=True)
+    try:
+        asyncio.run(run())
+    finally:
+        configure_permissions(allow_writes=False)
     activity_client.activity_list.assert_called_once_with("conversations", params={}, limit=5)

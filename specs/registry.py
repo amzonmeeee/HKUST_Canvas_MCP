@@ -3,8 +3,9 @@ from __future__ import annotations
 from jsonschema import Draft202012Validator
 
 from auth import CanvasAPIError
-from specs.assignments import ASSIGNMENT_TOOL_SPECS
+from auth.settings import is_canvas_unlinked
 from specs.activity import ACTIVITY_TOOL_SPECS
+from specs.assignments import ASSIGNMENT_TOOL_SPECS
 from specs.content import CONTENT_TOOL_SPECS
 from specs.core import CORE_TOOL_SPECS
 from specs.courses import COURSE_TOOL_SPECS
@@ -44,8 +45,21 @@ def dispatch_tool_call(
         return tool_error(code, message)
 
     try:
+        if (
+            name
+            not in {
+                "get_today",
+                "list_scheduled_submissions",
+                "get_scheduled_submission",
+            }
+            and is_canvas_unlinked()
+        ):
+            return tool_error(
+                "canvas_unconfigured",
+                "Canvas profile is unlinked. Choose a profile before using Canvas.",
+            )
         return spec.handler(payload)
     except CanvasAPIError as exc:
         return canvas_api_tool_error(exc)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - tool boundary returns structured errors
         return tool_error("internal_error", str(exc))

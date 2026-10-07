@@ -105,6 +105,7 @@ async function mockApi(page: Page) {
   let messages: Record<string, unknown>[] = [];
   let previews: Record<string, unknown>[] = [];
   let profileName = "Demo profile";
+  let canvasUnlinked = false;
   await page.route("**/api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
@@ -114,12 +115,26 @@ async function mockApi(page: Page) {
       result = { csrf_token: "synthetic-browser-csrf" };
     else if (path === "/api/canvas/status")
       result = {
-        auth_verified: true,
-        auth_status: "verified",
-        profile_name: profileName,
-        message: "Connected.",
+        auth_verified: !canvasUnlinked,
+        auth_status: canvasUnlinked ? "unconfigured" : "verified",
+        profile_name: canvasUnlinked ? null : profileName,
+        message: canvasUnlinked
+          ? "Choose a profile to reconnect."
+          : "Connected.",
       };
-    else if (path === "/api/canvas/courses")
+    else if (path === "/api/canvas/courses") {
+      if (canvasUnlinked) {
+        await route.fulfill({
+          status: 409,
+          json: {
+            error: {
+              code: "canvas_unconfigured",
+              message: "Choose a profile to reconnect.",
+            },
+          },
+        });
+        return;
+      }
       result = {
         courses: [
           course,
@@ -138,27 +153,35 @@ async function mockApi(page: Page) {
         ],
         truncated: false,
       };
-    else if (path === "/api/canvas/profiles")
+    } else if (path === "/api/canvas/profiles")
       result = {
+        unlinked: canvasUnlinked,
         profiles: [
           {
             id: "Default",
             name: "Demo profile",
-            selected: profileName === "Demo profile",
+            selected: !canvasUnlinked && profileName === "Demo profile",
           },
           {
             id: "Profile 1",
             name: "Second demo profile",
-            selected: profileName === "Second demo profile",
+            selected: !canvasUnlinked && profileName === "Second demo profile",
           },
         ],
       };
     else if (path === "/api/canvas/profile") {
-      profileName =
-        request.postDataJSON().profile_id === "Default"
-          ? "Demo profile"
-          : "Second demo profile";
-      result = { saved: true, profile_name: profileName };
+      if (method === "DELETE") {
+        canvasUnlinked = true;
+        previews = [];
+        result = { unlinked: true, cached_data_retained: true };
+      } else {
+        canvasUnlinked = false;
+        profileName =
+          request.postDataJSON().profile_id === "Default"
+            ? "Demo profile"
+            : "Second demo profile";
+        result = { saved: true, profile_name: profileName };
+      }
     } else if (path === "/api/settings")
       result = {
         phase: "A",
@@ -415,6 +438,53 @@ async function mockApi(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
+});
+
+test("Canvas unlink confirms, keeps a workspace and requires explicit reconnect", async ({
+  page,
+}) => {
+  await page.goto("/#session=synthetic-launch");
+  await page
+    .getByRole("button", { name: "Open TEST1000 · Demo course" })
+    .click();
+  await page.getByRole("button", { name: "Settings", exact: true }).click();
+  await page.getByRole("button", { name: "Unlink Canvas profile" }).click();
+  await expect(
+    page.getByText(/will not delete your Chrome profile/),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Cancel", exact: true }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Chrome profile" }),
+  ).toHaveValue("Default");
+  await page.getByRole("button", { name: "Unlink Canvas profile" }).click();
+  await page.getByRole("button", { name: "Unlink", exact: true }).click();
+  await expect(page.getByText(/Canvas: Not connected/)).toBeVisible();
+  await expect(
+    page
+      .locator(".canvas-config-form")
+      .getByRole("button", { name: "Connect Canvas" }),
+  ).toBeDisabled();
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await expect(
+    page.getByText("Canvas: Not connected", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "My workspaces 1" }).getByText(course.name, { exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Configure Canvas" }).click();
+  await expect(
+    page.getByRole("combobox", { name: "Chrome profile" }),
+  ).toHaveValue("");
+  await page
+    .getByRole("combobox", { name: "Chrome profile" })
+    .selectOption("Profile 1");
+  await page
+    .getByRole("button", { name: "Connect Canvas", exact: true })
+    .click();
+  await expect(
+    page.getByText("Canvas connected", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("Chrome · Second demo profile")).toBeVisible();
 });
 
 test("desktop course navigation, local rename and explicit deletion", async ({

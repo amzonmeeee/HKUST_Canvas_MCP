@@ -88,8 +88,10 @@ export function SettingsPage() {
             <h2>MCP clients</h2>
             <LocalClients desktop />
             <p>
-              The existing MCP server continues to work with Claude, Codex and
-              other MCP-capable clients.
+              Canvas MCP is read-only by default. To enable write tools, add
+              --allow-writes to your server command. Every write still requires
+              its existing preview and explicit confirmation. Generated client
+              setups explicitly use --read-only.
             </p>
             <div className="command-field">
               <code>{settings.mcp_command}</code>

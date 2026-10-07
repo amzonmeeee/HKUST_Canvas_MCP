@@ -1,0 +1,23 @@
+# First public release: gap analysis
+
+Base: `main` at `d06598ba6f887154300a21aa6a431ef1ff14eeff`.
+Branch: `release/first-v3.0.0`. Review date: 2026-10-07.
+Scope: feature freeze; preserve the existing browser/Python architecture and v2 CLI contracts. No new study features, live Canvas writes or paid model calls.
+
+| Phase | Existing at base | Gap and affected modules |
+| --- | --- | --- |
+| R1: safety/disconnect | Web Host/Origin/session/CSRF protections; backend preview/confirmation; provider deletion limited to app configuration/Keychain item; selected-profile persistence | Add explicit Canvas unlink with no Default/env fallback (`auth/settings.py`, `auth/profiles.py`, `auth/probe.py`, `auth/inspect.py`, `client/base.py`, `specs/registry.py`, `webapp/services/canvas.py`, `webapp/routes.py`, CanvasConfiguration/Dashboard). Add MCP default read-only and guarded opt-in (`canvas_mcp/server.py`, assignment annotations, generated client setups). Clarify provider disconnect and write permissions in Settings. Add prominent README safety/non-affiliation/verification copy and SECURITY.md. |
+| R2: onboarding | Canvas profile discovery/selection and auth status; legitimate CLI/API/local-provider flows; optional desktop MCP setup | No persisted first-run wizard. Add Welcome → Canvas test/account → AI or skip → privacy/safety → optional MCP → Ready. Extend profile test/account metadata with bounded, nonsecret responses. Preserve existing settings and schema-5 study data. Likely changes: web App/Settings/provider/profile components, webapp API/routes/store/db and Canvas service. |
+| R3: launcher/packaging | Loopback CLI launcher opens the browser after startup; Python wheel/sdist include prebuilt frontend/prompts; wheel runtime needs no Node | No native .app/.dmg, single-instance detection, launcher-owned lifecycle or Show logs/Retry/Quit failure UI. Occupied ports currently launch another service on a new port. Add a thin native launcher and reproducible macOS build scripts around the existing backend; bundle Python/dependencies/static assets. Determine signing/notarization availability without claiming unsigned artifacts are signed. |
+| R4: public docs | Detailed developer install, provider/MCP/storage/workbench documentation | README leads with development rather than Download; no public installer, 60-second onboarding, synthetic screenshot set, verified compatibility matrix, complete uninstall or release roadmap. Rewrite README after actual installer/wizard behavior exists; move developer detail into docs. Verify official HKGai provenance before any DeepSeek claim. Workspace-readable MCP is a future release, not v3.0 scope. |
+| R5: CI/release | Synthetic Python/frontend/Playwright tests; package-data definitions and manually built wheel/sdist | No .github workflows, reproducible native release pipeline, automated clean-install package smoke, secret-scan job, checksums or GitHub Release workflow. Make literal project version 3.0.0 (base is 3.0, normalized by packaging to 3.0.0); publish only after validation. Optional PyPI OIDC can follow. |
+
+Baseline executed on this branch before edits: **532 Python tests** and **26 frontend unit tests** passed. Existing tests block real Chrome cookies and Python HTTP requests; provider/browser fixtures are synthetic. Clean-machine/VM installation, native launcher behavior, signing and real-account onboarding have not been verified. A passing source-checkout test suite is not evidence of a public installer working.
+
+## R1 compatibility boundaries
+
+The explicit unlink state is additive in the shared JSON profile settings; selecting a profile reconnects. Workbench SQLite remains schema 5, without migrations or data deletion. Legacy installations that have never explicitly unlinked keep their existing saved/env/Default profile behavior. Explicit unlink takes precedence over those fallbacks and guards cached Canvas clients; CLI `settings clear` preserves that marker. Scheduled jobs cannot authenticate while unlinked. Unlink does not recall a Canvas operation already underway.
+
+MCP read-only is an intentional safety-default change: existing write clients must explicitly opt in. Opt-in retains original tool names, arguments and confirmation behavior. The direct Canvas CLI's write commands remain available with their existing confirmation requirements. Generated desktop configurations explicitly pin read-only.
+
+Implementation and verification progress is recorded separately in `release-r1.md`. Follow HANDOFF §26: run relevant tests and report exact files/counts/compatibility risks after each phase, then stop before starting the next phase unless asked to continue.

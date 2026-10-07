@@ -170,6 +170,12 @@ def register_study_routes(
         interactions.cancel_all()
         return result
 
+    @router.delete("/canvas/profile")
+    def unlink_profile():
+        result = canvas.unlink_profile()
+        interactions.cancel_all()
+        return result
+
     @app.exception_handler(ProviderError)
     @app.exception_handler(ParseError)
     async def study_error(request, exc):

@@ -6,6 +6,18 @@ Lecture notes, assignment deadlines, announcements, and one fewer tab to click. 
 
 Authentication uses your existing **Chrome Canvas session**: sign in through Chrome, then let the local tools use that session.
 
+## Safety and privacy
+
+**Your Canvas session stays local.** Canvas cookies and CSRF credentials stay in the Python backend and are never returned to the web frontend or sent to AI providers. Sources are indexed locally. Sending a request to a cloud provider shares your prompt, relevant conversation history and selected/retrieved course excerpts; explicitly enabled live tools can also supply requested Canvas results. A local model keeps inference on its configured server.
+
+API keys stay in the system credential store, with no plaintext fallback. The workbench uses Codex/Claude Code's supported CLI login without copying their tokens. Disconnecting a provider removes only its workbench configuration and this app's saved key; it does not delete an external account or sign the CLI out.
+
+Canvas writes use the existing preview and confirmation flow. **MCP is read-only by default**; write tools require `--allow-writes` or `CANVAS_MCP_ALLOW_WRITES=1`. Opting in enables tools, rather than approving any action. Show the exact preview and obtain explicit user approval before confirming. Generated desktop/CLI client configurations include `--read-only`, overriding an inherited environment opt-in; replace that flag deliberately to enable writes. The direct `canvas` CLI retains its v2 preview/confirmation commands.
+
+**Unlink Canvas profile** in Settings removes the shared workbench/CLI/MCP profile binding, cancels pending web write previews, and prevents further Canvas access until a profile is explicitly selected again. It does not delete Chrome profiles/cookies, sign Chrome out, or delete saved workspaces and cached course sources. Environment profile overrides do not bypass unlinking. Previously scheduled submissions cannot authenticate while unlinked; inspect their status before relinking. The CLI's `settings clear` does not undo an explicit unlink; reconnect with `canvas settings choose-profile`.
+
+This independent project is not affiliated with or endorsed by HKUST, Instructure/Canvas, OpenAI or Anthropic. Verify important submissions, grades and deadlines in Canvas. See [SECURITY.md](SECURITY.md) for the threat model and private vulnerability reporting.
+
 - `canvas-mcp` — Canvas tools for MCP clients.
 - `canvas` — the same tools in your terminal.
 - `canvas web` — a local study workbench with sources, grounded chat and Study Studio.

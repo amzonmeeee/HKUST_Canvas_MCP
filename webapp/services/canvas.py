@@ -7,7 +7,11 @@ from threading import RLock
 from auth import get_auth_status
 from auth.chrome_cookies import list_chrome_profiles
 from auth.profiles import resolve_selected_chrome_profile
-from auth.settings import set_selected_profile
+from auth.settings import (
+    is_canvas_unlinked,
+    set_selected_profile,
+    unlink_selected_profile,
+)
 from specs.registry import dispatch_tool_call
 from tools.common import canvas_client, reset_canvas_client
 
@@ -32,18 +36,22 @@ class CanvasService:
     def profiles(self):
         with self._lock:
             name, path = resolve_selected_chrome_profile()
+            unlinked = is_canvas_unlinked()
             return {
+                "unlinked": unlinked,
                 "profiles": [
                     {
                         "id": Path(p.path).name,
                         "name": p.name,
-                        "selected": str(Path(p.path)) == str(path)
+                        "selected": False
+                        if unlinked
+                        else str(Path(p.path)) == str(path)
                         if path
                         else p.name == name
                         or (not name and Path(p.path).name == "Default"),
                     }
                     for p in list_chrome_profiles()
-                ]
+                ],
             }
 
     def choose_profile(self, profile_id):
@@ -66,7 +74,37 @@ class CanvasService:
             self._profile_context = None
             return {"profile_name": profile.name, "saved": True}
 
+    def unlink_profile(self):
+        with self._lock:
+            try:
+                unlink_selected_profile()
+            except OSError as exc:
+                raise CanvasServiceError(
+                    "canvas_settings_unavailable",
+                    "The Canvas profile could not be unlinked. Check settings folder permissions, then retry.",
+                    503,
+                ) from exc
+            reset_canvas_client()
+            self._profile_context = None
+            return {"unlinked": True, "cached_data_retained": True}
+
+    @staticmethod
+    def _require_connected():
+        if is_canvas_unlinked():
+            raise CanvasServiceError(
+                "canvas_unconfigured",
+                "Canvas is not connected. Choose a Chrome profile to reconnect.",
+                409,
+            )
+
     def _status(self) -> dict:
+        if is_canvas_unlinked():
+            return {
+                "auth_verified": False,
+                "auth_status": "unconfigured",
+                "profile_name": None,
+                "message": "Canvas is not connected. Choose a Chrome profile to reconnect. Saved workspaces and sources are kept.",
+            }
         try:
             result = get_auth_status()
         # Browser/keychain adapters raise platform-specific errors. Their raw
@@ -105,6 +143,7 @@ class CanvasService:
 
     def _invoke(self, name: str, args: dict) -> dict:
         with self._lock:
+            self._require_connected()
             context = resolve_selected_chrome_profile()
             if context != self._profile_context:
                 reset_canvas_client()
@@ -147,6 +186,7 @@ class CanvasService:
         from auth import CanvasAPIError
 
         with self._lock:
+            self._require_connected()
             context = resolve_selected_chrome_profile()
             if context != self._profile_context:
                 reset_canvas_client()

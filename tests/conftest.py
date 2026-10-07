@@ -8,6 +8,12 @@ import pytest
 @pytest.fixture(autouse=True)
 def isolated_auth_and_network(monkeypatch, tmp_path):
     """Tests must mock browser access and HTTP instead of using personal sessions."""
+    from auth import settings
+
+    monkeypatch.setattr(settings, "CONFIG_DIR", tmp_path / "auth-settings")
+    monkeypatch.setattr(settings, "CONFIG_PATH", tmp_path / "auth-settings/settings.json")
+    monkeypatch.delenv("CANVAS_MCP_ALLOW_WRITES", raising=False)
+
     def blocked(*args, **kwargs):
         raise AssertionError("Mock Chrome cookies and HTTP requests in tests")
 
