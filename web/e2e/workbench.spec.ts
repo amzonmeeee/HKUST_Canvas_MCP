@@ -1,4 +1,9 @@
 import { test, expect, type Page } from "@playwright/test";
+import { join } from "node:path";
+
+const screenshot = (name: string) => process.env.WORKBENCH_SCREENSHOT_DIR
+  ? join(process.env.WORKBENCH_SCREENSHOT_DIR, name)
+  : test.info().outputPath(name);
 
 const workspaceId = "00000000-0000-4000-8000-000000000001";
 const sourceId = "00000000-0000-4000-8000-000000000002",
@@ -527,7 +532,7 @@ test("desktop course navigation, local rename and explicit deletion", async ({
   ).toBeVisible();
   await expect(page).not.toHaveURL(/session=/);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-dashboard-desktop.png",
+    path: screenshot("dashboard-desktop.png"),
     fullPage: true,
   });
   await page
@@ -537,9 +542,13 @@ test("desktop course navigation, local rename and explicit deletion", async ({
     page.getByRole("heading", { name: course.name, level: 1 }),
   ).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-workspace-desktop.png",
+    path: screenshot("workspace-desktop.png"),
     fullPage: true,
   });
+  await page.getByRole("button", { name: "Dashboard", exact: true }).click();
+  await expect(page.locator(".workspace-row")).toBeVisible();
+  await page.screenshot({ path: screenshot("dashboard-desktop.png"), fullPage: true });
+  await page.locator(".workspace-row").click();
   await page.getByRole("button", { name: "Edit workspace" }).click();
   await page
     .getByRole("textbox", { name: "Workspace name" })
@@ -567,7 +576,7 @@ test("mobile custom workspace creation and stacked panels without overflow", asy
     page.getByRole("button", { name: "New workspace" }),
   ).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-dashboard-mobile.png",
+    path: screenshot("dashboard-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "New workspace" }).click();
@@ -579,7 +588,7 @@ test("mobile custom workspace creation and stacked panels without overflow", asy
     page.getByRole("heading", { name: "Research reading", level: 1 }),
   ).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-workspace-mobile.png",
+    path: screenshot("workspace-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Sources" }).click();
@@ -601,7 +610,7 @@ test("settings, keyboard navigation and preserved MCP command", async ({
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await expect(page.getByText("canvas-mcp --transport stdio")).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-settings-desktop.png",
+    path: screenshot("settings-desktop.png"),
     fullPage: true,
   });
   await expect(
@@ -616,6 +625,7 @@ test("settings, keyboard navigation and preserved MCP command", async ({
 test("source sync, configured streaming chat, citations, quiz practice and local notes", async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1440, height: 1200 });
   await page.goto("/#session=synthetic-launch");
   await page.getByRole("button", { name: "Settings", exact: true }).click();
   await page.getByRole("button", { name: "Add API or local server" }).click();
@@ -628,6 +638,7 @@ test("source sync, configured streaming chat, citations, quiz practice and local
   await expect(
     page.getByRole("heading", { name: "Synthetic local model" }),
   ).toBeVisible();
+  await page.locator(".settings-section").filter({ has: page.getByRole("heading", { name: "Model providers" }) }).screenshot({ path: screenshot("providers.png") });
   await page.getByRole("button", { name: "Test connection" }).click();
   await expect(
     page.getByRole("button", { name: "Connected", exact: true }),
@@ -652,6 +663,7 @@ test("source sync, configured streaming chat, citations, quiz practice and local
   await expect(
     page.getByRole("dialog").getByText("Retrieval searches selected evidence."),
   ).toBeVisible();
+  await page.screenshot({ path: screenshot("citation.png") });
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).not.toBeVisible();
   await page.getByRole("button", { name: "Save to notes" }).click();
@@ -669,8 +681,9 @@ test("source sync, configured streaming chat, citations, quiz practice and local
   await page.getByLabel("A. Selected evidence").check();
   await page.getByRole("button", { name: "Check answer" }).click();
   await expect(page.getByText("Correct", { exact: true })).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-study-desktop.png",
+    path: screenshot("study-desktop.png"),
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -680,7 +693,7 @@ test("source sync, configured streaming chat, citations, quiz practice and local
     ),
   ).toBe(true);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-study-mobile.png",
+    path: screenshot("study-mobile.png"),
     fullPage: true,
   });
 });
@@ -715,6 +728,7 @@ test("Canvas writes require exact preview and a separate human confirm click", a
   );
   await expect(page.locator(".write-preview")).toContainText("Synthetic user");
   expect(writes).toBe(0);
+  await page.locator(".write-preview").screenshot({ path: screenshot("write-preview.png") });
   await page.getByRole("button", { name: "Confirm Canvas write" }).click();
   await expect(page.locator(".write-preview")).toContainText("written");
   expect(writes).toBe(1);
@@ -918,7 +932,7 @@ test("dashboard views, direct profile configuration and source-wide/category sel
   await page.getByRole("button", { name: "Save Canvas profile" }).click();
   await expect(page.getByText("Chrome · Second demo profile")).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-cards.png",
+    path: screenshot("cards.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -969,7 +983,7 @@ test("dashboard views, direct profile configuration and source-wide/category sel
       .evaluate((el) => getComputedStyle(el).textAlign),
   ).toBe("center");
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-source-reading.png",
+    path: screenshot("source-reading.png"),
     fullPage: true,
   });
   await page.keyboard.press("Escape");
@@ -1049,7 +1063,7 @@ test("Return shortcuts preserve newlines, respect IME and keep conversation cont
     "rgb(0, 90, 156)",
   );
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-chat-toolbar.png",
+    path: screenshot("chat-toolbar.png"),
     fullPage: true,
   });
   await page.reload();
@@ -1078,7 +1092,7 @@ test("Studio Word/Excel choices send instructions and template, then offer real 
     .getByRole("textbox", { name: "Instructions" })
     .fill("Use Chinese and emphasize definitions.");
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-word-controls.png",
+    path: screenshot("word-controls.png"),
     fullPage: true,
   });
   // Supply a synthetic provider and document response without a paid model call.
@@ -1145,7 +1159,7 @@ test("Studio Word/Excel choices send instructions and template, then offer real 
     )
     .toBe(true);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-excel-mobile.png",
+    path: screenshot("excel-mobile.png"),
     fullPage: true,
   });
 });
@@ -1226,7 +1240,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
     await description.evaluate((el) => getComputedStyle(el).maxWidth),
   ).toBe("none");
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-new-settings-wide.png",
+    path: screenshot("new-settings-wide.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Dashboard", exact: true }).click();
@@ -1332,7 +1346,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
   await page.getByRole("button", { name: "Expand preview" }).click();
   await expect(page.locator(".visual-material-dialog")).toBeVisible();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-map-wide.png",
+    path: screenshot("map-wide.png"),
     fullPage: true,
   });
   await page
@@ -1359,7 +1373,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
   );
   await page.getByRole("button", { name: "Expand preview" }).click();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-slides-wide.png",
+    path: screenshot("slides-wide.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Close material preview" }).click();
@@ -1379,7 +1393,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
   );
   await page.getByRole("button", { name: "Expand preview" }).click();
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-infographic-wide.png",
+    path: screenshot("infographic-wide.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Close material preview" }).click();
@@ -1396,7 +1410,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
       .evaluate((el) => getComputedStyle(el).maxWidth),
   ).toBe("none");
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-workspace-wide.png",
+    path: screenshot("workspace-wide.png"),
     fullPage: true,
   });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1406,7 +1420,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
     )
     .toBe(true);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-workspace-new-mobile.png",
+    path: screenshot("workspace-new-mobile.png"),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Settings", exact: true }).click();
@@ -1417,7 +1431,7 @@ test("visual Studio previews, exports and responsive prose use real container wi
     .toBe(true);
   expect((await description.boundingBox())!.height).toBeGreaterThan(40);
   await page.screenshot({
-    path: "/private/tmp/hkust-canvas-v3-settings-new-mobile.png",
+    path: screenshot("settings-new-mobile.png"),
     fullPage: true,
   });
 });

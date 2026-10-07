@@ -2,13 +2,15 @@
 
 ## Supported versions
 
-Security fixes target `main` and the upcoming v3.0 release. Older version branches are not maintained separately. v3.0 is in release preparation; a native macOS installer has not yet been published.
+Security fixes target `main` and v3.0.0. Older version branches are not maintained separately. The first macOS artifacts are ad-hoc signed and not Apple-notarized.
 
 ## Threat model and machine boundary
 
 The workbench is a single-user application on a trusted computer. Its Python backend binds to `127.0.0.1`; the local HTTP API checks the exact Host and Origin, requires a per-launch HttpOnly session and protects mutations with a separate CSRF token. It blocks cross-site requests and uses a restrictive Content Security Policy. It is not designed to be hosted publicly or shared between users. Local malware or another process running as your user can access your files and browser data; localhost protections do not replace operating-system security.
 
 The web launcher prints a private, short-lived session link. Do not publish it or expose the server through a reverse proxy. MCP normally uses stdio; network MCP transports require their own secure deployment and are not a public multi-user service.
+
+The desktop launcher keeps its session marker and readiness files in owner-only app-data folders instead of printing the link to logs. It authenticates an existing service before reusing it. A file lock prevents duplicate desktop backends; Quit stops only the launcher's owned process. The backend monitors its parent and stops when that launcher disappears. The browser UI and Python runtime are bundled; neither Chrome data nor user study data is included in release artifacts.
 
 ## Canvas authentication and unlinking
 
