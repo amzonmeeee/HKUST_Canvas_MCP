@@ -175,9 +175,10 @@ Updating the application preserves study data. Never replace or remove your data
 
 If the app is already gone, its API credentials are system credential-store entries under `HKUST_Canvas_MCP.providers`, keyed by provider ID. Remove only those entries; never clear your whole Keychain. Launcher logs/session metadata are inside the app data folder.
 
-## Roadmap
+## TODO
 
-For v3.1 or later: read-only MCP access to saved workspaces, indexed sources, search and artifacts, so external agents can use the same materials as the browser. These tools are planned, not included in v3.0. Signing/notarization and broader platform testing are next steps.
+- [ ] Auto-fetch RVC recording and transcribe in automation, or auto-fetch Zoom transcription
+- [ ] For v3.1 or later: read-only MCP access to saved workspaces, indexed sources, search and artifacts, so external agents can use the same materials as the browser. These tools are planned, not included in v3.0. Signing/notarization and broader platform testing are next steps.
 
 ## Disclaimer
 
