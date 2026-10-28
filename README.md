@@ -8,7 +8,7 @@ This app connects HKUST Canvas to the AI tools that you select. You can use Clau
 
 ![Selected sources, cited chat and practice quiz. All data is synthetic.](docs/images/workspace.png)
 
-**[Download for macOS · Apple Silicon](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.0.0)** · [User guide](docs/user-guide.md) · [Developer install](docs/development.md) · [Security policy](SECURITY.md)
+**[Download for macOS · Apple Silicon](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.1.0)** · [User guide](docs/user-guide.md) · [Developer install](docs/development.md) · [Security policy](SECURITY.md)
 
 ## Functions
 
@@ -37,7 +37,7 @@ single AI stack.
 
 ## Install
 
-1. Download the `.dmg` file from the [v3.0.0 release](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.0.0).
+1. Download the `.dmg` file from the [v3.1.0 release](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.1.0).
 2. Open the file. Move **HKUST Canvas Workbench.app** to Applications.
 3. Open the app. If macOS blocks it, go to **System Settings → Privacy & Security → Open Anyway**.
 4. Select the Chrome profile that you use for Canvas. Select **Check connection**.

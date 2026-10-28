@@ -4,7 +4,7 @@ For a concise description of storage and data sharing, see [PRIVACY.md](PRIVACY.
 
 ## Supported versions
 
-Security fixes target `main` and v3.0.0. Older version branches are not maintained separately. The first macOS artifacts are ad-hoc signed and not Apple-notarized.
+Security fixes target `main` and v3.1.0. Older version branches are not maintained separately. The first macOS artifacts are ad-hoc signed and not Apple-notarized.
 
 ## Threat model and machine boundary
 

@@ -2,7 +2,7 @@
 
 ## Setup
 
-1. Download the Apple Silicon `.dmg` file from the [v3.0.0 release](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.0.0).
+1. Download the Apple Silicon `.dmg` file from the [v3.1.0 release](https://github.com/amzonmeeee/HKUST_Canvas_MCP/releases/tag/v3.1.0).
 2. Open the file. Move **HKUST Canvas Workbench.app** to Applications.
 3. Open the app. The app opens your default browser. It shows a Dock icon while its service runs.
 4. Select the Chrome profile that you use for Canvas. Select **Check connection**. Make sure that the app shows the correct account.
@@ -18,7 +18,7 @@ To stop the service, quit the app with the app menu or ⌘Q. If you close the br
 
 ### Open the first macOS release
 
-Release v3.0.0 does not have an Apple Developer ID signature or notarization. Thus macOS can block the first launch.
+Release v3.1.0 does not have an Apple Developer ID signature or notarization. Thus macOS can block the first launch.
 
 1. Download the app only from the release page of this repository.
 2. Compare the SHA-256 checksum of the file with `SHA256SUMS`.
@@ -144,7 +144,7 @@ An update keeps your study data. Do not replace or remove your data folder to up
 | The app does not start | Use Show logs, Retry or Quit. Share only redacted metadata. Do not share session links. |
 | The default port is in use | The launcher selects a free loopback port. Do not expose it on your network. |
 | A write result is not clear | Check Canvas before you make a new preview. Each confirmation works one time. The app does not retry an unclear write. |
-| An older web build does not open the database | Use v3.0.0. Schema 6 keeps the data, but older builds cannot open it. |
+| An older web build does not open the database | Use v3.0.0 or later. Schema 6 keeps the data, but older builds cannot open it. |
 | The transcriber asks you to sign in | Open a recording in Chrome and sign in to HKUST. Then select Transcribe again. |
 
 <a id="uninstall"></a>

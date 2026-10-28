@@ -238,7 +238,7 @@ def codex_command():
 async def codex_initialize(process):
     rpc = JSONLines(process)
     await rpc.request(
-        "initialize", {"clientInfo": {"name": "canvas_workbench", "version": "3.0.0"}}
+        "initialize", {"clientInfo": {"name": "canvas_workbench", "version": "3.1.0"}}
     )
     await rpc.send({"method": "initialized"})
     account = await rpc.request("account/read", {"refreshToken": False})
