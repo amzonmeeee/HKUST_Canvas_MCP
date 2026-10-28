@@ -276,27 +276,32 @@ class TranscriberService:
             self._job.update({k: v for k, v in update.items() if v is not None})
 
     def _run_job(self, target):
+        state, message = "complete", None
         try:
             target()
-            self._progress(state="complete", event="complete")
         except _Cancelled:
-            self._progress(state="cancelled", event="stopped", message="Stopped. Run it again to continue.")
+            state, message = "cancelled", "Stopped. Run it again to continue."
         except (TranscriberError, CanvasServiceError) as exc:
-            self._progress(state="failed", event="failed", message=str(exc))
+            state, message = "failed", str(exc)
         except Exception:  # noqa: BLE001 -- details stay in the component log, not the HTTP response
-            self._progress(state="failed", event="failed",
-                           message="The transcriber stopped with an error. Retry, or remove and install it again.")
-        finally:
-            self._process = None
-            if self._job:
-                self._job["finished_at"] = now()
-            if self._job and self._job.get("kind") == "transcribe" and self._job["state"] != "complete":
-                self.store.source_status(
-                    self._job["source_id"],
-                    "not_synced" if self._job["state"] == "cancelled" else "failed",
-                    code="transcription_" + self._job["state"],
-                    message=self._job.get("message"),
-                )
+            state, message = "failed", "The transcriber stopped with an error. Retry, or remove and install it again."
+        self._process = None
+        job = self._job
+        if job and job.get("kind") == "transcribe" and state != "complete":
+            # Update the source first: a client that sees the job end must also see the source state.
+            self.store.source_status(
+                job["source_id"],
+                "not_synced" if state == "cancelled" else "failed",
+                code="transcription_" + state,
+                message=message,
+            )
+        if job:
+            job.update(
+                state=state,
+                event={"complete": "complete", "cancelled": "stopped"}.get(state, "failed"),
+                message=message,
+                finished_at=now(),
+            )
 
     def _command(self, checkout, *args):
         """Run the component; parse @@progress lines; raise on failure."""
