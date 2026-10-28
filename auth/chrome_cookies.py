@@ -133,6 +133,16 @@ def _chrome_cookies(
     return browser_cookie3.chrome(**kwargs)
 
 
+def read_domain_cookies(domain_name: str, *, profile_path: str | None = None) -> list[Cookie]:
+    """Cookies of one exact host, for HKUST services outside Canvas (for example rvcmedia)."""
+    domain = _normalize_cookie_domain(domain_name)
+    return [
+        cookie
+        for cookie in _chrome_cookies(domain_name=domain, profile_path=profile_path)
+        if _normalize_cookie_domain(cookie.domain) == domain
+    ]
+
+
 def _domain_from_base_url(base_url: str) -> str:
     parsed = urlparse(base_url)
     return (parsed.hostname or base_url).lstrip(".").lower()

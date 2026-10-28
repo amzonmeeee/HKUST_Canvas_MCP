@@ -26,6 +26,8 @@ from .providers import (
 from .services.canvas import CanvasServiceError
 from .services.interactions import InteractionService
 from .services.sources import SourceService
+from .services.transcriber import MODELS as TRANSCRIBER_MODELS
+from .services.transcriber import TranscriberService
 from .services.study import StudyService, artifact_markdown
 from .source_preview import reading_text
 from .store import StudyStore
@@ -42,6 +44,10 @@ class OnboardingComplete(StrictModel):
 class SourceSelection(StrictModel):
     source_ids: list[UUID] = Field(max_length=300)
     force: bool = False
+
+
+class TranscriberInstall(StrictModel):
+    model: Literal[TRANSCRIBER_MODELS] = "auto"  # type: ignore[valid-type]
 
 
 class TextSource(StrictModel):
@@ -162,6 +168,7 @@ def register_study_routes(
     study = StudyService(store, provider_factory or factory, interactions)
     app.state.study_store, app.state.sources, app.state.study = store, sources, study
     app.state.interactions = interactions
+    app.state.transcriber = TranscriberService(repository.data_dir, store, sources, canvas)
     router = APIRouter(prefix="/api")
 
     @router.get("/onboarding")
@@ -246,7 +253,7 @@ def register_study_routes(
         identifiers = [
             s["id"]
             for s in inventory_result["sources"]
-            if s["kind"] not in {"upload", "external"}
+            if s["kind"] not in {"upload", "external", "recording"}
         ]
         result = sources.sync(row, identifiers)
         return {**result, "warnings": inventory_result["warnings"]}
@@ -290,6 +297,27 @@ def register_study_routes(
             str(workspace_id), payload.title + ".md", payload.content.encode()
         )
 
+    @router.get("/transcriber")
+    def transcriber_status():
+        return app.state.transcriber.status()
+
+    @router.post("/transcriber/install", status_code=202)
+    def transcriber_install(payload: TranscriberInstall):
+        return app.state.transcriber.install(payload.model)
+
+    @router.post("/transcriber/stop")
+    def transcriber_stop():
+        return app.state.transcriber.cancel()
+
+    @router.delete("/transcriber")
+    def transcriber_remove():
+        return app.state.transcriber.remove()
+
+    @router.post("/workspaces/{workspace_id}/sources/{source_id}/transcribe", status_code=202)
+    def transcribe_source(workspace_id: UUID, source_id: UUID):
+        row = source(workspace_id, source_id)
+        return app.state.transcriber.transcribe(workspace(workspace_id), row)
+
     @router.get("/workspaces/{workspace_id}/sources/{source_id}")
     def source_details(workspace_id: UUID, source_id: UUID, offset: int = 0):
         row = source(workspace_id, source_id)
@@ -307,6 +335,11 @@ def register_study_routes(
             "total_chunks": len(chunks),
             "display_html": display_html,
             "display_text": reading_text(chunks),
+            **(
+                {"transcript": sources.transcript_info(row)}
+                if row["kind"] == "recording"
+                else {}
+            ),
         }
 
     @router.get("/workspaces/{workspace_id}/citations/{chunk_id}")

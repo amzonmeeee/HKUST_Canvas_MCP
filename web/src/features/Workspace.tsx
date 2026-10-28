@@ -40,7 +40,8 @@ export function WorkspacePage({
   const [sourcesOpen, setSourcesOpen] = useState(true);
   const [studioOpen, setStudioOpen] = useState(true);
   const layout = usePanelLayout(sourcesOpen, studioOpen);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>([]),
+    [sourcesVersion, setSourcesVersion] = useState(0);
   const [providerId, setProviderId] = useState("");
   const [viewer, setViewer] = useState<{
     sourceId?: string;
@@ -276,6 +277,7 @@ export function WorkspacePage({
                   workspace={workspace}
                   selected={selected}
                   setSelected={setSelected}
+                  version={sourcesVersion}
                   openSource={(sourceId) => setViewer({ sourceId })}
                 />
               )}
@@ -354,6 +356,11 @@ export function WorkspacePage({
               workspaceId={workspaceId}
               {...viewer}
               close={() => setViewer(null)}
+              onSourceReady={(sourceId) => {
+                // A finished transcript joins the selected sources for chat and Studio.
+                setSelected((current) => [...new Set([...current, sourceId])]);
+                setSourcesVersion((v) => v + 1);
+              }}
             />
           )}
         </>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import time
@@ -9,6 +10,7 @@ from threading import Lock
 from urllib.parse import quote, urlsplit
 from uuid import uuid4
 
+from .. import rvc
 from ..observability import event
 from ..parsers import (
     MAX_FILE_BYTES,
@@ -18,6 +20,7 @@ from ..parsers import (
     parse_file,
 )
 from ..source_preview import canvas_html
+from ..db import now
 from ..store import StudyStore
 from .canvas import CanvasServiceError
 
@@ -193,6 +196,17 @@ class SourceService:
                     identifier = row.get("url") if kind == "page" else row.get("id")
                     if identifier is None:
                         continue
+                    if kind == "page" and (
+                        rvc.is_recording(row.get("title")) or rvc.is_recording(identifier)
+                    ):
+                        add(
+                            "recording",
+                            identifier,
+                            row.get("title"),
+                            "/pages/" + quote(str(identifier), safe=""),
+                            row,
+                        )
+                        continue
                     if kind == "page":
                         suffix = "/pages/" + quote(str(identifier), safe="")
                     else:
@@ -280,10 +294,13 @@ class SourceService:
                         "title": str(item.get("title", ""))[:500],
                         "type": kind,
                     }
+                    if key_kind == "page" and rvc.is_recording(object_id):
+                        key_kind = "recording"
                     if key_kind and object_id is not None:
                         record["source_key"] = f"{key_kind}:{object_id}"
                         if record["source_key"] not in known_keys:
                             route = {
+                                "recording": "pages",
                                 "page": "pages",
                                 "file": "files",
                                 "assignment": "assignments",
@@ -354,7 +371,8 @@ class SourceService:
 
     def _sync_one(self, workspace, source, force):
         started = time.monotonic()
-        if source["status"] == "external_reference" or source["kind"] == "upload":
+        if source["status"] == "external_reference" or source["kind"] in {"upload", "recording"}:
+            # Recordings are transcribed only on an explicit request (hours of local work).
             return source
         self.store.source_status(source["id"], "syncing")
         try:
@@ -422,6 +440,7 @@ class SourceService:
                         "get_page", course_id=course_id, url_or_id=object_id
                     )
                     body = raw.get("body") or ""
+                    self._discover_recordings(workspace, body)
                 elif kind == "assignment":
                     raw = self.canvas.client_call(
                         "get_assignment", course_id=course_id, assignment_id=object_id
@@ -548,6 +567,63 @@ class SourceService:
             elapsed_ms=int((time.monotonic() - started) * 1000),
         )
         return result
+
+    def _discover_recordings(self, workspace, body):
+        """A page that links to RVC lecture pages (often "RVC Recordings:") adds them as recordings."""
+        course_id = workspace["canvas_course_id"]
+        known = {s["source_key"] for s in self.store.sources(workspace["id"])}
+        for slug in rvc.recording_links(body, course_id)[:200]:
+            if "recording:" + slug in known:
+                continue
+            try:
+                # Students cannot open unpublished recording pages; list only the ones that open.
+                page = self.canvas.client_call("get_page", course_id=course_id, url_or_id=slug)
+            except CanvasServiceError:
+                continue
+            if not rvc.media_paths(page.get("body") or ""):
+                continue
+            self.store.upsert_source(
+                workspace["id"],
+                {
+                    "source_key": "recording:" + slug,
+                    "kind": "recording",
+                    "canvas_object_id": slug,
+                    "title": str(page.get("title") or slug)[:500],
+                    "canvas_url": f"https://canvas.ust.hk/courses/{course_id}/pages/" + quote(slug, safe=""),
+                    "remote_updated_at": page.get("updated_at"),
+                    "metadata": {},
+                    "status": "not_synced",
+                },
+            )
+
+    def index_transcript(self, source, title, texts, *, model=None):
+        """Index a finished local transcript, so chat and Studio can cite it by time."""
+        sections = []
+        for number, text in enumerate(texts, 1):
+            sections += rvc.transcript_sections(text, part=number if len(texts) > 1 else None)
+        if not sections:
+            raise ParseError("no_extractable_text", "The transcript is empty.")
+        full = "\n\n".join(texts)
+        path = self.folder(source["id"]) / "transcript.txt"
+        if path.is_symlink():
+            raise ParseError("storage_error", "Source files cannot be symbolic links.")
+        path.touch(mode=0o600)
+        os.chmod(path, 0o600)
+        path.write_text(full, encoding="utf-8")
+        info = self.folder(source["id"]) / "transcript.json"
+        info.write_text(json.dumps({"title": title, "model": model, "created_at": now()}))
+        os.chmod(info, 0o600)
+        self.store.index(
+            source, chunks_for_sections(sections), hashlib.sha256(full.encode()).hexdigest()
+        )
+        self._write_text(source)
+
+    def transcript_info(self, source):
+        path = self.folder(source["id"]) / "transcript.json"
+        try:
+            return json.loads(path.read_text())
+        except (OSError, ValueError):
+            return None
 
     def _revalidate(self, source):
         # Preserve chunk IDs: saved citations must continue to resolve on an unchanged refresh.

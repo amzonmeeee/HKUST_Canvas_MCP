@@ -87,7 +87,15 @@ def create_app(
 
         configure_logging()
         repository.initialize()
-        yield
+        transcriber = getattr(app.state, "transcriber", None)
+        if transcriber is not None:
+            transcriber.recover()
+        try:
+            yield
+        finally:
+            if transcriber is not None:
+                # A transcription runs in its own process group; stop it with the app.
+                transcriber.shutdown()
 
     app = FastAPI(
         title="HKUST Canvas Workbench",

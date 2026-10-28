@@ -14,12 +14,28 @@ The feature branch extends `canvas web` into a study workspace while retaining t
 | Native CLI providers and desktop setup | `webapp/native_providers.py`, `webapp/local_clients.py`, `web/src/features/LocalClients.tsx` | Codex/Claude Code login, ephemeral text-only inference, cancellation, native schema validation, safe desktop MCP configuration merge |
 | Citation-aware chat and persisted history | `webapp/services/study.py`, `web/src/features/Chat.tsx` | Selected-source context, scope-aware history, SSE, partial failures, valid IDs and citation inspection |
 | Quiz, flashcards, study guide, Word, Excel and visual materials | `webapp/services/study.py`, `webapp/office_exports.py`, `webapp/visual_exports.py`, `web/src/features/Studio.tsx` | Schemas, instructions/templates, provenance/citations, practice and real DOCX/XLSX/PPTX and safe SVG plus Markdown/JSON exports |
+| RVC recordings and local transcription | `webapp/rvc.py`, `webapp/services/transcriber.py`, `web/src/features/Recording.tsx` | RVC title/link/player patterns, pinned component tree hash, strict archive extraction, install/transcribe/stop/remove jobs and time-located transcript chunks |
 | Structured source reading | `webapp/source_preview.py`, `web/src/features/StudyContent.tsx` | Passive Canvas HTML, supported presentation styles, continuous extracted text and independent retrieval chunks |
 | Canvas profile configuration | `webapp/services/canvas.py`, `web/src/features/CanvasConfiguration.tsx` | Shared dashboard/settings editor, detected-profile IDs, saved selection, client reset and pending-preview cancellation |
 | Local notes and saved artifacts | `webapp/store.py`, `web/src/features/Studio.tsx` | Note CRUD and saving answers/materials with provenance |
 | Preserved v2 MCP and approval | `webapp/services/interactions.py`, `web/src/features/Actions.tsx` | Existing registry remains unchanged; previews pin arguments and hide single-use v2 tokens |
 | Credentials and privacy | `webapp/providers.py`, `webapp/security.py`, `webapp/observability.py` | Keychain-only keys, private paths, no secrets in SQLite/API errors/model tool results and metadata-only logs |
 | Versioned prompts and packaging | `webapp/prompts/*_v1.md`, `pyproject.toml`, `MANIFEST.in` | Wheel/source distribution include compiled assets, prompts, fonts and dependency notices |
+
+## RVC recordings
+
+A Canvas page whose title follows the RVC pattern (`COURSE-SECTION-YYYY-MM-DD-HH-MM`) is a `recording` source. Inventory finds such pages when the course shows its Pages index. When a page sync reads a page that links to RVC pages, it adds each linked recording that the student can open. Sync never transcribes a recording.
+
+Transcription is a background job; only one job runs at a time. The service:
+
+1. Gets the recording page and its `rvcmedia.ust.hk` media IDs.
+2. Reads the Chrome `rvcmedia.ust.hk` cookie of the selected profile, and gets each HLS stream link from the player page.
+3. Writes the links to a private `streams.json` and runs `RVC_Transcriber streams --keep-runtime --resume --json-progress`. It deletes the file after the run.
+4. Groups the `[HH:MM:SS]` paragraphs into sections with a `time` locator, and indexes them like other sources.
+
+The component is not bundled. **Install transcriber** downloads the GitHub source tarball of `COMPONENT_COMMIT`, extracts only regular files inside one top folder, and compares the git tree hash with `COMPONENT_TREE`. It then runs `install`, which prepares the component's own Python, packages, FFmpeg and model. In a source checkout, the supervisor runs with the workbench Python. The packaged app has no general interpreter, so it gets Python with the component's own pinned, checksum-verified uv. All component files are in `components/rvc-transcriber/` in the data folder. Developers can set `CANVAS_RVC_TRANSCRIBER_PATH` to use a local checkout.
+
+Stop sends SIGINT to the component's process group; finished segments stay checkpointed, so a new run continues. Quitting the app stops a running job. At the next start, an interrupted recording returns to "not synced" with a message.
 
 ## Sources and retrieval
 

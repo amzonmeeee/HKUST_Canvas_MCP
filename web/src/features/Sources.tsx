@@ -12,6 +12,7 @@ import {
   ClipboardList,
   Megaphone,
   Link,
+  Video,
 } from "lucide-react";
 import { api, upload } from "../api";
 import { ErrorNotice, Loading } from "../components";
@@ -22,11 +23,13 @@ export function SourcesPanel({
   selected,
   setSelected,
   openSource,
+  version = 0,
 }: {
   workspace: Workspace;
   selected: string[];
   setSelected: (ids: string[]) => void;
   openSource: (id: string) => void;
+  version?: number;
 }) {
   const base = `/api/workspaces/${workspace.id}/sources`;
   const [sources, setSources] = useState<Source[]>([]),
@@ -54,7 +57,7 @@ export function SourcesPanel({
     return () => {
       alive.current = false;
     };
-  }, [workspace.id]);
+  }, [workspace.id, version]);
   async function operation(action: () => Promise<unknown>) {
     setBusy(true);
     setError("");
@@ -159,6 +162,7 @@ export function SourcesPanel({
           announcement: Megaphone,
           discussion: MessageSquare,
           external: Link,
+          recording: Video,
         } as Record<string, typeof FileText>
       )[kind] || FileText;
     return <Icon size={13} aria-hidden="true" />;
@@ -322,7 +326,9 @@ export function SourcesPanel({
                 <summary>
                   {kind === "upload"
                     ? "Your uploads"
-                    : kind[0].toUpperCase() + kind.slice(1) + "s"}
+                    : kind === "recording"
+                      ? "RVC recordings"
+                      : kind[0].toUpperCase() + kind.slice(1) + "s"}
                   <span className="category-controls">
                     {" "}
                     <span>
@@ -390,6 +396,7 @@ export function SourcesPanel({
                             disabled={
                               busy ||
                               s.kind === "upload" ||
+                              s.kind === "recording" ||
                               s.status === "external_reference"
                             }
                             onClick={() =>
@@ -496,7 +503,8 @@ export function SourcesPanel({
       )}
       <p className="source-footnote">
         Only ready, selected sources are available to chat and Studio. Files are
-        indexed for search; video and external tools stay as references.
+        indexed for search; video and external tools stay as references. Open
+        an RVC recording to make a local transcript.
       </p>
     </div>
   );

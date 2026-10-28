@@ -31,6 +31,16 @@ Local-model configurations can keep model processing on your computer when
 the endpoint runs there. A remote compatible endpoint receives the same request
 context; configuring an endpoint does not make it local.
 
+RVC lecture recordings are transcribed only when you ask. The optional
+transcriber is a separate open-source component that the app downloads from
+GitHub at a pinned version and checks against a fixed hash. To get a
+recording's stream link, the backend reads your Chrome cookie for
+`rvcmedia.ust.hk`; the cookie and the short-lived stream link stay in the
+backend and are not sent to AI providers. The component streams the
+recording's audio from HKUST and transcribes it on your computer. Temporary
+audio stays in the component's own folder, and the stream link file is deleted
+after each run. The transcript is stored like any other local source.
+
 Canvas write actions require explicit confirmation; external MCP access is
 read-only by default. An external MCP client's handling of tool results and
 conversation data is governed by that client's settings and policies.
@@ -38,7 +48,7 @@ conversation data is governed by that client's settings and policies.
 Unlinking Canvas preserves Chrome login and saved study data. Disconnecting a
 provider removes its app configuration and app-owned credential-store item,
 without signing out external accounts or CLI logins. To remove saved study
-data, follow the separate [uninstall steps](README.md#uninstall).
+data, follow the separate [uninstall steps](docs/user-guide.md#uninstall).
 
 See [SECURITY.md](SECURITY.md) for technical safeguards and private vulnerability
 reporting. You are responsible for following institutional policies, service

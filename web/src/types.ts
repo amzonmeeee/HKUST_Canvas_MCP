@@ -54,6 +54,23 @@ export type Source = {
     items?: { title: string; type: string; source_key?: string }[];
   };
 };
+export type TranscriberStatus = {
+  installed: boolean;
+  model: string | null;
+  component_commit: string | null;
+  disk_bytes: number;
+  job: {
+    kind: "install" | "transcribe";
+    state: "running" | "complete" | "failed" | "cancelled";
+    event: string;
+    message: string | null;
+    source_id?: string;
+    title?: string;
+    segment?: number;
+    segments?: number;
+    audio_time?: string;
+  } | null;
+};
 export type Chunk = {
   id: string;
   source_id: string;

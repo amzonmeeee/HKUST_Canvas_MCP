@@ -6,6 +6,7 @@ import { X, ArrowUpRight } from "lucide-react";
 import { api } from "../api";
 import { ErrorNotice, Loading } from "../components";
 import type { Citation, Chunk, Source } from "../types";
+import { RecordingTranscription } from "./Recording";
 
 export function locatorLabel(locator: Record<string, string | number>) {
   return Object.entries(locator)
@@ -158,11 +159,13 @@ export function SourceViewer({
   sourceId,
   citation,
   close,
+  onSourceReady,
 }: {
   workspaceId: string;
   sourceId?: string;
   citation?: Citation;
   close: () => void;
+  onSourceReady?: (sourceId: string) => void;
 }) {
   const [source, setSource] = useState<Source | null>(null),
     [chunks, setChunks] = useState<Chunk[]>([]),
@@ -170,7 +173,8 @@ export function SourceViewer({
     [displayHtml, setDisplayHtml] = useState<string | null>(null),
     [displayText, setDisplayText] = useState<string | null>(null),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(true);
+    [busy, setBusy] = useState(true),
+    [version, setVersion] = useState(0);
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement as HTMLElement;
@@ -225,7 +229,7 @@ export function SourceViewer({
       document.removeEventListener("keydown", key);
       previous?.focus();
     };
-  }, [workspaceId, sourceId, citation]);
+  }, [workspaceId, sourceId, citation, version]);
   async function more() {
     setBusy(true);
     try {
@@ -292,9 +296,19 @@ export function SourceViewer({
             <small>Saved excerpt · {locatorLabel(citation.locator)}</small>
           </blockquote>
         )}
+        {source?.kind === "recording" && (
+          <RecordingTranscription
+            workspaceId={workspaceId}
+            source={source}
+            onTranscribed={() => {
+              setVersion((v) => v + 1);
+              onSourceReady?.(source.id);
+            }}
+          />
+        )}
         {displayHtml ? (
           <CanvasSourceBody html={displayHtml} />
-        ) : displayText ? (
+        ) : displayText && source?.kind !== "recording" ? (
           <div className="source-reading-text">{displayText}</div>
         ) : (
           chunks.map((c) => (
@@ -320,14 +334,17 @@ export function SourceViewer({
             content is not downloaded. Upload a caption file to study a video.
           </p>
         )}
-        {!busy && !chunks.length && !error && (
+        {!busy && !chunks.length && !error && source?.kind !== "recording" && (
           <p>
             {source?.error_message ||
               "Sync this source to inspect its extracted text."}
           </p>
         )}
         {busy && <Loading>Reading source…</Loading>}
-        {!displayHtml && !displayText && !busy && chunks.length < total && (
+        {!displayHtml &&
+          (!displayText || source?.kind === "recording") &&
+          !busy &&
+          chunks.length < total && (
           <button className="button secondary" onClick={() => void more()}>
             Load more excerpts ({chunks.length}/{total})
           </button>
