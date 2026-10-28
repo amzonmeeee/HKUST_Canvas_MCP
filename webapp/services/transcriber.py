@@ -42,6 +42,11 @@ class TranscriberError(CanvasServiceError):
     pass
 
 
+def supported_platform() -> bool:
+    """The transcriber component runs only on Apple Silicon macOS."""
+    return sys.platform == "darwin" and os.uname().machine == "arm64"
+
+
 def git_tree_hash(folder: Path) -> str:
     """The git tree SHA-1 of a folder, independent of how the archive was compressed."""
     entries = []
@@ -354,7 +359,7 @@ class TranscriberService:
     def install(self, model="auto"):
         if model not in MODELS:
             raise TranscriberError("invalid_model", "Unknown transcription model.", 422)
-        if sys.platform != "darwin" or os.uname().machine != "arm64":
+        if not supported_platform():
             raise TranscriberError("unsupported_platform", "Transcription needs an Apple Silicon Mac.", 409)
 
         def work():

@@ -57,6 +57,12 @@ else:
 '''
 
 
+@pytest.fixture
+def apple_silicon(monkeypatch):
+    # CI also runs on Linux; the component itself supports only Apple Silicon macOS.
+    monkeypatch.setattr(transcriber_module, "supported_platform", lambda: True)
+
+
 def fake_component(tmp_path, monkeypatch):
     checkout = tmp_path / "fake-transcriber"
     checkout.mkdir()
@@ -169,7 +175,15 @@ def test_source_archive_extraction_is_strict(tmp_path):
     assert not (tmp_path / "escape.py").exists()
 
 
-def test_pinned_download_must_match_tree(setup, tmp_path, monkeypatch):  # noqa: F811
+def test_install_refused_on_unsupported_platform(setup, monkeypatch):  # noqa: F811
+    client, *_ = setup
+    monkeypatch.setattr(transcriber_module, "supported_platform", lambda: False)
+    refused = client.post("/api/transcriber/install", json={"model": "auto"})
+    assert refused.status_code == 409 and refused.json()["error"]["code"] == "unsupported_platform"
+    assert client.get("/api/transcriber").json()["job"] is None
+
+
+def test_pinned_download_must_match_tree(setup, tmp_path, monkeypatch, apple_silicon):  # noqa: F811
     client, app, *_ = setup
     monkeypatch.delenv(transcriber_module.CHECKOUT_ENV, raising=False)
     service = app.state.transcriber
@@ -219,7 +233,7 @@ def test_recordings_found_by_title_and_from_module_links(setup):  # noqa: F811
     canvas.client_call.assert_not_called()
 
 
-def test_install_transcribe_index_and_cite(setup, tmp_path, monkeypatch):  # noqa: F811
+def test_install_transcribe_index_and_cite(setup, tmp_path, monkeypatch, apple_silicon):  # noqa: F811
     client, app, _w, _p, _f, _s, canvas = setup
     fake_component(tmp_path, monkeypatch)
     resolved = []
